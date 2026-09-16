@@ -68,7 +68,9 @@ def _prepare_sequences_from_records(records: Sequence[Any], window_size: int = 2
         try:
             meter_id = getattr(r, "meter_id", None)
             ts = getattr(r, "timestamp", None)
-            power = getattr(r, "power_consumption", None) or getattr(r, "power", None)
+            power = getattr(r, "power_consumption", None)
+            if power is None:
+                power = getattr(r, "power", None)
             if power is None:
                 continue
             groups[meter_id].append((ts, float(power)))

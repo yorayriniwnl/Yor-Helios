@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Any
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -6,17 +6,24 @@ try:
     from backend.app.core.database import get_db
     from backend.app.schemas.recommendation import RecommendationResponse
     from backend.app.services.recommendation_service import get_recommendation_for_alert as svc_recommend
+    from backend.app.dependencies.auth import get_current_user
 except Exception:
     from ...core.database import get_db
     from ...schemas.recommendation import RecommendationResponse
     from ...services.recommendation_service import get_recommendation_for_alert as svc_recommend
+    from ...dependencies.auth import get_current_user
 
 
 router = APIRouter(prefix="/recommendations", tags=["recommendations"])
 
 
 @router.get("/", response_model=RecommendationResponse)
-def recommendation_route(alert_id: Optional[int] = None, meter_id: Optional[int] = None, db: Session = Depends(get_db)):
+def recommendation_route(
+    alert_id: Optional[int] = None,
+    meter_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+    current_user: Any = Depends(get_current_user),
+):
     """Return a human-friendly recommendation for the supplied alert or meter.
 
     Priority: if `alert_id` provided, compute recommendation from the alert.

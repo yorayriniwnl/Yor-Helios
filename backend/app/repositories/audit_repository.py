@@ -31,8 +31,12 @@ def create_audit_log(
         except Exception:
             meta_str = None
 
-    audit = AuditLog(user_id=user_id, action=action, entity=entity, entity_id=entity_id, metadata=meta_str)
+    audit = AuditLog(user_id=user_id, action=action, entity=entity, entity_id=entity_id, metadata_json=meta_str)
     db.add(audit)
-    db.commit()
-    db.refresh(audit)
+    try:
+        db.commit()
+        db.refresh(audit)
+    except Exception:
+        db.rollback()
+        raise
     return audit

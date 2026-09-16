@@ -114,6 +114,7 @@ def main():
     from app.services.reading_service import create_reading as svc_create_reading
     from app.repositories.reading_repository import create_reading as repo_create_reading
     from app.services.user_service import create_user as svc_create_user
+    from app.services.role_service import DEMO_ROLE_BY_EMAIL, backfill_null_roles, ensure_default_roles
     from app.models.zone import Zone
     from app.models.meter import Meter
     from app.models.user import User
@@ -123,6 +124,9 @@ def main():
     db = SessionLocal()
 
     try:
+        demo_roles = ensure_default_roles(db)
+        backfill_null_roles(db)
+
         sample_zone_names = [
             "Northside",
             "Riverside",
@@ -206,11 +210,19 @@ def main():
         for uspec in DEMO_USERS:
             existing_u = db.query(User).filter(User.email == uspec["email"]).first()
             if existing_u:
+                existing_u.role_id = demo_roles[DEMO_ROLE_BY_EMAIL[uspec["email"]]].id
+                db.commit()
                 print(f" - user exists: {uspec['email']} (id={existing_u.id})")
                 created_users.append(existing_u)
                 continue
             try:
-                u = svc_create_user(db, name=uspec["name"], email=uspec["email"], password_hash=hash_password(uspec["password"]))
+                u = svc_create_user(
+                    db,
+                    name=uspec["name"],
+                    email=uspec["email"],
+                    password_hash=hash_password(uspec["password"]),
+                    role_id=demo_roles[DEMO_ROLE_BY_EMAIL[uspec["email"]]].id,
+                )
                 print(f" - created user: {u.email} (id={u.id})")
                 created_users.append(u)
             except ValueError:

@@ -5,13 +5,13 @@ import '@fontsource/inter/600.css'
 import '@fontsource/inter/700.css'
 import '@fontsource/inter/800.css'
 import React from 'react'
+import type { Viewport } from 'next'
 import OfflineBanner from '../components/ui/OfflineBanner'
 
 export const metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'),
   title: 'Helios // Energy Intelligence',
   description: 'A YOR-styled command surface for meter telemetry, anomaly triage, and field response.',
-  themeColor: '#000000',
   icons: { icon: '/icon.svg' },
   openGraph: {
     title: 'Helios // Energy Intelligence',
@@ -19,6 +19,11 @@ export const metadata = {
     type: 'website',
     images: ['/icon.svg'],
   },
+}
+
+export const viewport: Viewport = {
+  themeColor: '#000000',
+  colorScheme: 'dark',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

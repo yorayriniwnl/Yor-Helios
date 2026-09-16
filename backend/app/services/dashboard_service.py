@@ -2,28 +2,36 @@
 
 Provides a simple summary used by dashboards or health endpoints.
 """
-from typing import Dict
+from typing import Any, Dict
 from sqlalchemy.orm import Session
 
 try:
     from backend.app.repositories.meter_repository import count_meters as repo_count_meters
     from backend.app.repositories.reading_repository import count_readings as repo_count_readings
     from backend.app.repositories.alert_repository import count_alerts as repo_count_alerts
+    from backend.app.repositories.alert_repository import count_open_alerts as repo_count_open_alerts
+    from backend.app.repositories.alert_repository import count_critical_alerts as repo_count_critical_alerts
 except Exception:
     from ..repositories.meter_repository import count_meters as repo_count_meters
     from ..repositories.reading_repository import count_readings as repo_count_readings
     from ..repositories.alert_repository import count_alerts as repo_count_alerts
+    from ..repositories.alert_repository import count_open_alerts as repo_count_open_alerts
+    from ..repositories.alert_repository import count_critical_alerts as repo_count_critical_alerts
 
 
-def get_summary(db: Session) -> Dict[str, int]:
-    """Return a summary with totals for meters, readings and alerts.
+def get_summary(db: Session) -> Dict[str, Any]:
+    """Return totals plus operator-facing active-alert counts.
 
-    Returns a dict with keys: `total_meters`, `total_readings`, `total_alerts`.
+    `total_alerts` is the historical total. `open_alerts` and
+    `critical_alerts` exclude resolved cases and are the values displayed by
+    the command-center open-alert KPI.
     """
     summary = {
         "total_meters": repo_count_meters(db),
         "total_readings": repo_count_readings(db),
         "total_alerts": repo_count_alerts(db),
+        "open_alerts": repo_count_open_alerts(db),
+        "critical_alerts": repo_count_critical_alerts(db),
     }
 
     # Add zone loss percentage (average across zones) if available
@@ -98,11 +106,26 @@ def get_recovery_metrics(db: Session, days: int = 30) -> Dict[str, object]:
     now = datetime.now(timezone.utc)
     since = now - timedelta(days=int(days or 30))
 
-    # fetch resolved alerts within window
+    # Fetch the complete alert window once. The previous implementation only
+    # fetched resolved alerts, which made a non-empty dashboard report a 100%
+    # success rate, and then performed meter/zone/user lookups inside the loop.
     try:
-        alerts = db.query(Alert).filter(Alert.resolved_at.isnot(None)).filter(Alert.resolved_at >= since).all()
+        alerts = db.query(Alert).filter(Alert.created_at >= since).all()
     except Exception:
         alerts = []
+
+    meter_ids = {a.meter_id for a in alerts if getattr(a, "meter_id", None) is not None}
+    user_ids = {a.assigned_to for a in alerts if getattr(a, "assigned_to", None) is not None}
+    try:
+        meter_rows = db.query(Meter).filter(Meter.id.in_(meter_ids)).all() if meter_ids else []
+        meter_map = {m.id: m for m in meter_rows}
+        zone_ids = {m.zone_id for m in meter_rows if getattr(m, "zone_id", None) is not None}
+        zone_rows = db.query(Zone).filter(Zone.id.in_(zone_ids)).all() if zone_ids else []
+        zone_map_by_id = {z.id: z for z in zone_rows}
+        user_rows = db.query(User).filter(User.id.in_(user_ids)).all() if user_ids else []
+        user_map = {u.id: u for u in user_rows}
+    except Exception:
+        meter_map, zone_map_by_id, user_map = {}, {}, {}
 
     # explainable base minutes per severity
     base_by_severity = {"critical": 120, "high": 60, "medium": 20, "low": 5}
@@ -113,11 +136,18 @@ def get_recovery_metrics(db: Session, days: int = 30) -> Dict[str, object]:
     inspector_map = {}  # user_id -> stats
 
     resolved_count = 0
-    total_count = 0
+    total_count = len(alerts)
     times_to_close = []
 
+    def _utc(value):
+        if value is None:
+            return None
+        return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value
+
     for a in alerts:
-        total_count += 1
+        resolved_at = _utc(getattr(a, "resolved_at", None))
+        created_at = _utc(getattr(a, "created_at", None))
+        is_resolved = resolved_at is not None and resolved_at >= since
         try:
             sev = (a.severity or "medium").lower()
             base = base_by_severity.get(sev, 10)
@@ -130,66 +160,51 @@ def get_recovery_metrics(db: Session, days: int = 30) -> Dict[str, object]:
             est_minutes = 0
             est_value = 0.0
 
-        # aggregate totals
-        total_value += est_value
+        if is_resolved:
+            resolved_count += 1
+            total_value += est_value
+            if created_at is not None:
+                mins = max(0.0, (resolved_at - created_at).total_seconds() / 60.0)
+                times_to_close.append(mins)
 
-        # zone aggregation via meter -> zone
-        try:
-            zone_id = None
-            zone_name = None
-            if a.meter_id:
-                m = db.query(Meter).filter(Meter.id == a.meter_id).first()
-                if m is not None:
-                    zone_id = getattr(m, "zone_id", None)
-                    if zone_id:
-                        z = db.query(Zone).filter(Zone.id == zone_id).first()
-                        zone_name = getattr(z, "name", None) if z is not None else None
-            if zone_id is None:
-                zone_id = 0
-                zone_name = zone_name or "unknown"
-            zm = zone_map.get(zone_id) or {"zone_id": zone_id, "zone_name": zone_name or "unknown", "recovered_value": 0.0}
+        # Zone recovery only includes resolved alerts. Lookups are served from
+        # the maps above, keeping this O(alerts + meters + zones + users).
+        if is_resolved:
+            meter = meter_map.get(getattr(a, "meter_id", None))
+            zone_id = getattr(meter, "zone_id", None) if meter is not None else None
+            zone = zone_map_by_id.get(zone_id)
+            zone_key = zone_id if zone_id is not None else 0
+            zm = zone_map.get(zone_key) or {
+                "zone_id": zone_key,
+                "zone_name": getattr(zone, "name", None) or "unknown",
+                "recovered_value": 0.0,
+            }
             zm["recovered_value"] = float(zm.get("recovered_value", 0.0)) + est_value
-            zone_map[zone_id] = zm
-        except Exception:
-            pass
+            zone_map[zone_key] = zm
 
         # inspector aggregation
-        try:
-            uid = a.assigned_to if getattr(a, "assigned_to", None) is not None else None
-            if uid is not None:
-                st = inspector_map.get(uid) or {"user_id": uid, "name": None, "assigned": 0, "resolved": 0, "total_time_min": 0.0}
-                st["assigned"] = int(st.get("assigned", 0)) + 1
-                # since we queried resolved alerts, count resolved
+        uid = getattr(a, "assigned_to", None)
+        if uid is not None:
+            st = inspector_map.get(uid) or {
+                "user_id": uid,
+                "assigned": 0,
+                "resolved": 0,
+                "total_time_min": 0.0,
+            }
+            st["assigned"] = int(st.get("assigned", 0)) + 1
+            if is_resolved:
                 st["resolved"] = int(st.get("resolved", 0)) + 1
-                # compute time to close
-                try:
-                    if a.resolved_at and a.created_at:
-                        delta = a.resolved_at - a.created_at
-                        mins = max(0.0, delta.total_seconds() / 60.0)
-                        st["total_time_min"] = float(st.get("total_time_min", 0.0)) + mins
-                        times_to_close.append(mins)
-                except Exception:
-                    pass
-                inspector_map[uid] = st
-        except Exception:
-            pass
-
-        # overall resolved counts and times
-        try:
-            if a.resolved_at is not None:
-                resolved_count += 1
-                if a.created_at:
-                    delta = a.resolved_at - a.created_at
-                    times_to_close.append(max(0.0, delta.total_seconds() / 60.0))
-        except Exception:
-            pass
+                if created_at is not None:
+                    st["total_time_min"] = float(st.get("total_time_min", 0.0)) + max(
+                        0.0, (resolved_at - created_at).total_seconds() / 60.0
+                    )
+            inspector_map[uid] = st
 
     # finalize inspector stats: fetch user names and compute averages
     inspector_stats = []
     for uid, st in inspector_map.items():
         try:
-            u = db.query(User).filter(User.id == uid).first()
-            name = getattr(u, "name", None) if u is not None else None
+            name = getattr(user_map.get(uid), "name", None)
         except Exception:
             name = None
         assigned = int(st.get("assigned", 0))

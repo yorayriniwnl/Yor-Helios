@@ -66,5 +66,11 @@ def get_db() -> Generator:
     db = SessionLocal()
     try:
         yield db
+    except Exception:
+        # A failed flush/commit leaves the session transaction poisoned. Roll
+        # it back before the session is returned to the pool so one request
+        # cannot contaminate the next request handled by this process.
+        db.rollback()
+        raise
     finally:
         db.close()

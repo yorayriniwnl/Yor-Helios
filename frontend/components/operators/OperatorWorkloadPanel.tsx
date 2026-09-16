@@ -5,7 +5,7 @@ import { get, post, patch } from '../../lib/api'
 import Spinner from '../ui/Spinner'
 import ErrorMessage from '../ui/ErrorMessage'
 import useAuthStore from '../../store/authStore'
-import { isDemoModeEnabled } from '../../lib/demo'
+import { getDemoAlerts, isDemoModeEnabled } from '../../lib/demo'
 
 type AlertItem = {
   id: number
@@ -31,7 +31,9 @@ function OperatorWorkloadPanel() {
       setLoading(true)
       setError(null)
       try {
-        const [aRes, pRes] = await Promise.all([get<any[]>('/alerts', undefined, { cacheMs: 10000 }), get<any[]>('/alerts/priority', undefined, { cacheMs: 10000 }).catch(() => [])])
+        const [aRes, pRes] = isDemoModeEnabled()
+          ? [getDemoAlerts(), getDemoAlerts().filter((alert) => (alert.score ?? 0) >= 0.8)]
+          : await Promise.all([get<any[]>('/alerts/', undefined, { cacheMs: 10000 }), get<any[]>('/alerts/priority', undefined, { cacheMs: 10000 }).catch(() => [])])
         if (!mounted) return
 
         const mapped: AlertItem[] = (aRes || []).map((a) => ({

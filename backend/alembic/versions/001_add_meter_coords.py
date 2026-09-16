@@ -8,7 +8,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision = "001_add_meter_coords"
-down_revision = None
+down_revision = "000_initial_schema"
 branch_labels = None
 depends_on = None
 

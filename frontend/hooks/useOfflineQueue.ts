@@ -14,6 +14,7 @@ import {
   isOnline as checkOnline,
   getQueue,
   processQueue,
+  clearQueue as clearOfflineQueue,
 } from '../lib/offline'
 
 export interface UseOfflineQueueResult {
@@ -65,15 +66,9 @@ export function useOfflineQueue(): UseOfflineQueueResult {
   }, [])
 
   const clearQueue = useCallback(() => {
-    try {
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('helios.offline.queue')
-        setQueueLength(0)
-        setQueue([])
-      }
-    } catch {
-      // ignore
-    }
+    clearOfflineQueue()
+    setQueueLength(0)
+    setQueue([])
   }, [])
 
   return { queueLength, isOnline, queue, flush, clearQueue }

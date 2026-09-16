@@ -5,6 +5,7 @@
  */
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { get } from '../lib/api'
+import { getDemoMeters, isDemoModeEnabled } from '../lib/demo'
 import type { ApiMeter } from '../types/api'
 
 export interface UseMetersOptions {
@@ -37,12 +38,20 @@ export function useMeters(opts: UseMetersOptions = {}): UseMetersResult {
   const fetchMeters = useCallback(async () => {
     setLoading(true)
     setError(null)
+    if (isDemoModeEnabled()) {
+      const demoMeters = getDemoMeters().filter((meter) => zoneId == null || meter.zone_id === zoneId)
+      if (isMounted.current) {
+        setMeters(demoMeters.slice(skip, skip + limit))
+        setLoading(false)
+      }
+      return
+    }
     try {
       let data: ApiMeter[]
       if (zoneId != null) {
         data = await get<ApiMeter[]>(`/meters/by-zone/${zoneId}`, { params: { skip, limit } })
       } else {
-        data = await get<ApiMeter[]>('/meters', { params: { skip, limit } })
+        data = await get<ApiMeter[]>('/meters/', { params: { skip, limit } })
       }
       if (isMounted.current) setMeters(Array.isArray(data) ? data : [])
     } catch (e: any) {
@@ -57,6 +66,7 @@ export function useMeters(opts: UseMetersOptions = {}): UseMetersResult {
   }, [fetchMeters])
 
   const fetchMeter = useCallback(async (id: number): Promise<ApiMeter | null> => {
+    if (isDemoModeEnabled()) return getDemoMeters().find((meter) => meter.id === id) ?? null
     try {
       return await get<ApiMeter>(`/meters/${id}`)
     } catch {

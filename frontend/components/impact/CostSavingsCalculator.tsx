@@ -30,6 +30,7 @@ export default function CostSavingsCalculator() {
         <label className="text-sm">
           <div className="text-xs text-[var(--muted)]">Number of meters</div>
           <input
+            id="calculator-meters"
             type="number"
             value={meters}
             min={0}
@@ -41,12 +42,13 @@ export default function CostSavingsCalculator() {
         <label className="text-sm">
           <div className="text-xs text-[var(--muted)]">Avg loss %</div>
           <input
+            id="calculator-loss-percent"
             type="number"
             step="0.1"
             value={lossPercent}
             min={0}
             max={100}
-            onChange={(e) => setLossPercent(Math.max(0, Number(e.target.value || 0)))}
+            onChange={(e) => setLossPercent(Math.min(100, Math.max(0, Number(e.target.value || 0))))}
             className="w-full mt-1 p-2 rounded bg-[var(--card-bg)] border border-[var(--card-border)]"
           />
         </label>
@@ -54,6 +56,7 @@ export default function CostSavingsCalculator() {
         <label className="text-sm">
           <div className="text-xs text-[var(--muted)]">Avg monthly kWh per meter</div>
           <input
+            id="calculator-avg-kwh"
             type="number"
             value={avgKwh}
             min={0}
@@ -65,6 +68,7 @@ export default function CostSavingsCalculator() {
         <label className="text-sm">
           <div className="text-xs text-[var(--muted)]">Tariff (₹/kWh)</div>
           <input
+            id="calculator-tariff"
             type="number"
             step="0.1"
             value={tariff}
@@ -77,6 +81,7 @@ export default function CostSavingsCalculator() {
         <label className="text-sm col-span-1 sm:col-span-2">
           <div className="text-xs text-[var(--muted)]">Detection recovery % (percent of losses recovered)</div>
           <input
+            id="calculator-recovery-percent"
             type="range"
             min={0}
             max={100}

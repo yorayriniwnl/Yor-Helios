@@ -6,6 +6,7 @@ import KPICard from './KPICard'
 type KpiCardsProps = {
   totalMeters?: number
   totalAlerts?: number
+  openAlerts?: number
   criticalAlerts?: number
   totalReadings?: number
   zoneLossPct?: number
@@ -15,6 +16,7 @@ type KpiCardsProps = {
 export default function KpiCards({
   totalMeters = 0,
   totalAlerts = 0,
+  openAlerts = totalAlerts,
   criticalAlerts = 0,
   totalReadings = 0,
   zoneLossPct,
@@ -64,7 +66,7 @@ export default function KpiCards({
     },
     {
       title: 'Open Alerts',
-      value: totalAlerts.toLocaleString(),
+      value: openAlerts.toLocaleString(),
       icon: <AlertIcon />,
       subtitle: criticalAlerts > 0 ? `${criticalAlerts} critical` : 'none critical',
       trend: criticalAlerts > 0

@@ -9,7 +9,7 @@ type Step = { id: string; title: string; desc: string; duration?: number; action
 
 const STEPS: Step[] = [
   { id: 'livefeed', title: 'Anomaly Detected', desc: 'A high-severity anomaly appears in the live feed.', duration: 3800, action: 'anomaly' },
-  { id: 'kpis', title: 'Prioritization', desc: 'Decision engine suggests a root cause, confidence and estimated recovery.', duration: 3200, action: 'priority' },
+  { id: 'kpis', title: 'Prioritization', desc: 'Decision engine suggests a root cause, normalized score band and estimated recovery.', duration: 3200, action: 'priority' },
   { id: 'operators', title: 'Assignment', desc: 'Assign the alert to an inspector for investigation.', duration: 3200, action: 'assign' },
   { id: 'evidence', title: 'Evidence Capture', desc: 'Attach photo and notes to the case as proof.', duration: 3200, action: 'evidence' },
   { id: 'recovery', title: 'Recovery', desc: 'Resolve the issue and observe estimated recovered value on the dashboard.', duration: 3200, action: 'recovery' },
@@ -38,6 +38,7 @@ export default function GuidedDemo() {
     } catch {
       // ignore — the manual Start Demo button still works
     }
+    // start is intentionally stable for this one-time URL-driven trigger.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -45,7 +46,6 @@ export default function GuidedDemo() {
     return () => {
       cleanup()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   function cleanup() {
@@ -83,14 +83,16 @@ export default function GuidedDemo() {
   }
 
   function emitDemoAlert() {
-    const id = Date.now()
-    const meter = Math.floor(Math.random() * 60) + 1
-    const score = Math.min(1, 0.82 + Math.random() * 0.18)
+    const id = 9201
+    const meter = 204
+    const score = 0.94
     const a = {
       id,
       meter_id: meter,
       score,
-      explanation: score > 0.85 ? `Critical spike at M-${1000 + meter}` : `Anomaly detected at M-${1000 + meter}`,
+      severity: 'critical',
+      type: 'tamper_suspicion',
+      explanation: `Sustained under-reporting detected at M-${meter}; inspect the meter and transformer path.`,
       created_at: new Date().toISOString(),
       status: 'open',
     }
@@ -105,7 +107,7 @@ export default function GuidedDemo() {
     if (!a) return
     const decision = {
       root_cause: 'Transformer stress',
-      confidence: 0.82,
+      score_band: 'HIGH',
       recommended_action: 'Inspect transformer and balance load',
       estimated_recovery_minutes: 60,
       estimated_recovery_value_usd: 12000,
@@ -127,7 +129,7 @@ export default function GuidedDemo() {
   function simulateEvidence() {
     const a = lastAlertRef.current
     if (!a) return
-    const ev = { id: 'ev-' + Date.now(), url: '/demo/evidence.jpg', notes: 'Before photo' }
+    const ev = { id: 'ev-9201', url: '/demo/evidence.jpg', notes: 'Before photo' }
     const updated = { ...a, evidence: [ev], explanation: `${a.explanation} — Evidence attached` }
     emitLocalMessage({ type: 'alert', data: updated })
     lastAlertRef.current = updated

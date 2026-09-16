@@ -1,8 +1,9 @@
 from typing import Optional
 from pydantic import BaseModel
+from .base import ORMResponseModel
 
 
-class RecommendationResponse(BaseModel):
+class RecommendationResponse(ORMResponseModel):
     primary_action: str
     action_text: str
     reason: str
@@ -10,5 +11,3 @@ class RecommendationResponse(BaseModel):
     meter_id: Optional[int] = None
     zone_id: Optional[int] = None
     alternatives: Optional[list] = []
-
-    model_config = {"from_attributes": True}

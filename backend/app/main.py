@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-import sys
+from fastapi.responses import JSONResponse
 
 try:
     from backend.app.core.logging import configure_logging, RequestLoggingMiddleware, RequestTracingMiddleware
@@ -42,7 +42,12 @@ except Exception:
     from .middleware.security_headers import SecurityHeadersMiddleware
     from .core.config import settings
 
-app = FastAPI()
+app = FastAPI(
+    title="Helios Energy Intelligence API",
+    version="1.0.0",
+    docs_url="/docs" if getattr(settings, "ENV", "development").lower() != "production" else None,
+    redoc_url="/redoc" if getattr(settings, "ENV", "development").lower() != "production" else None,
+)
 
 # Configure CORS from settings (avoid wildcard origins)
 try:
@@ -76,13 +81,7 @@ app.add_middleware(RequestTracingMiddleware)
 # Request logging middleware: logs each request and any unhandled errors
 app.add_middleware(RequestLoggingMiddleware)
 
-api_prefix = getattr(settings, "API_V1_STR", "/api/v1")
-
-# In test runs (pytest) it's convenient to expose endpoints without the API
-# prefix so tests can call routes directly. Detect pytest by checking for the
-# pytest module in sys.modules or the PYTEST_CURRENT_TEST env marker.
-if "pytest" in sys.modules or "PYTEST_CURRENT_TEST" in __import__("os").environ:
-    api_prefix = ""
+api_prefix = getattr(settings, "API_V1_STR", "/api/v1") or "/api/v1"
 
 app.include_router(users_router, prefix=api_prefix)
 app.include_router(auth_router, prefix=api_prefix)
@@ -109,10 +108,7 @@ async def health_basic():
 
 @app.get("/ready")
 async def readiness_check():
-    """Readiness probe: checks database and redis connectivity.
-
-    Returns detailed JSON suitable for orchestration systems.
-    """
+    """Readiness probe for dependencies required by this deployment."""
     status = "ready"
 
     # Check database connectivity
@@ -135,11 +131,12 @@ async def readiness_check():
             conn.close()
     except Exception as exc:  # pragma: no cover - best-effort readiness check
         db_ok = False
-        db_error = str(exc)
+        db_error = "database unavailable"
         status = "not_ready"
 
     # Check Redis connectivity
-    redis_ok = False
+    redis_configured = bool((getattr(settings, "REDIS_URL", "") or "").strip())
+    redis_ok = not redis_configured
     redis_error = None
     try:
         try:
@@ -147,29 +144,30 @@ async def readiness_check():
         except Exception:
             from .core.cache import _init_client
 
-        client = _init_client()
-        if client is None:
+        client = _init_client() if redis_configured else None
+        if client is None and redis_configured:
             redis_ok = False
-            redis_error = "redis not configured or redis library missing"
+            redis_error = "redis unavailable"
             status = "not_ready"
-        else:
+        elif client is not None:
             try:
                 client.ping()
                 redis_ok = True
             except Exception as exc:  # pragma: no cover - best-effort
                 redis_ok = False
-                redis_error = str(exc)
+                redis_error = "redis unavailable"
                 status = "not_ready"
     except Exception as exc:  # pragma: no cover
         redis_ok = False
-        redis_error = str(exc)
+        redis_error = "redis unavailable"
         status = "not_ready"
 
-    return {
+    payload = {
         "status": status,
-        "database": {"ok": db_ok, "error": db_error},
-        "redis": {"ok": redis_ok, "error": redis_error},
+        "database": {"ok": db_ok},
+        "redis": {"configured": redis_configured, "ok": redis_ok},
     }
+    return JSONResponse(payload, status_code=200 if status == "ready" else 503)
 
 
 if (getattr(settings, "ENV", "").lower() != "production"):

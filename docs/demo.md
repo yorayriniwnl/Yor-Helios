@@ -10,16 +10,16 @@ what to show, and the key talking points to cover.
 ```bash
 docker compose up --build
 # seed demo data
-docker compose exec backend python scripts/seed.py
+docker compose exec backend python backend/scripts/seed.py
 ```
 
 - Quick local (dev):
 
 ```bash
-# Backend
-cd backend
-pip install -r requirements.txt
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+# Backend (run from the repository root so package imports match CI/container execution)
+pip install -r backend/requirements.txt
+python -m alembic -c backend/alembic.ini upgrade head
+python -m uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000
 
 # Frontend
 cd ../frontend
@@ -32,7 +32,7 @@ Verify health: `http://localhost:8000/health` (should report DB and Redis status
 ## 2. What to show in the demo
 
 - Landing / Login
-  - Use seeded credentials: `admin@example.com / adminpass` (created by `scripts/seed.py`).
+  - Use seeded credentials: `admin@example.com / adminpass123` (created by `backend/scripts/seed.py`).
 
 - Dashboard
   - KPI cards (overall consumption, active alerts)

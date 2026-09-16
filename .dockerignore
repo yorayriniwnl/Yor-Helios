@@ -1,0 +1,35 @@
+# Keep the backend build context limited to files used by backend/Dockerfile.
+.git
+.git/**
+
+# Frontend has its own image and ignore file.
+frontend/
+
+# Documentation, design assets, and local tooling are not part of the backend image.
+assets/
+design/
+docs/
+scripts/
+data-simulator/
+
+# Never copy local state or credentials into an image build context.
+data/
+.env
+.env.*
+*.db
+*.sqlite
+*.sqlite3
+
+# Python caches and local environments.
+**/__pycache__/
+**/*.py[cod]
+backend/.venv/
+backend/venv/
+.pytest_cache/
+.mypy_cache/
+
+# Local logs and editor metadata.
+**/*.log
+.vscode/
+.idea/
+Thumbs.db

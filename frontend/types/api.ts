@@ -84,6 +84,7 @@ export interface ApiAlert {
   resolved_at?: string | null
   assigned_to?: number | null
   resolution_notes?: string | null
+  sla_breached?: boolean
 }
 
 // ─── Anomalies ───────────────────────────────────────────────────────────────
@@ -98,12 +99,57 @@ export interface ApiAnomaly {
   created_at?: string
 }
 
+export interface InvestigationEvidence {
+  id: number
+  alert_id: number
+  original_filename?: string | null
+  file_url: string
+  gps_lat?: number | null
+  gps_lon?: number | null
+  evidence_ts?: string | null
+  notes?: string | null
+  before_after?: 'before' | 'after' | string | null
+  created_at: string
+}
+
+export interface InvestigationTimelineEvent {
+  event: string
+  at: string
+  actor_id?: number | null
+  detail?: string | null
+  source?: string
+}
+
+export interface AlertInvestigationContext {
+  detector: string
+  score_band: 'HIGH' | 'MEDIUM' | 'LOW' | string
+  score_is_probability: false
+  evidence_state: 'MEASURED_READING' | 'NO_LINKED_READING' | string
+  observed_signals: string[]
+  possible_causes: string[]
+  uncertainty: string[]
+  recommended_response: string
+}
+
+export interface ApiAlertInvestigation {
+  alert: ApiAlert
+  meter?: ApiMeter | null
+  zone?: ApiZone | null
+  reading?: ApiReading | null
+  anomalies: ApiAnomaly[]
+  evidence: InvestigationEvidence[]
+  timeline: InvestigationTimelineEvent[]
+  investigation: AlertInvestigationContext
+}
+
 // ─── Dashboard / Summary ─────────────────────────────────────────────────────
 
 export interface DashboardSummary {
   total_meters: number
   total_readings: number
   total_alerts: number
+  open_alerts?: number
+  critical_alerts?: number
   zone_loss_percentage?: number
   transformer_health?: {
     average_health_score: number
@@ -151,6 +197,8 @@ export type WsMessageType = 'reading' | 'alert' | 'anomaly' | 'ping'
 export interface WsMessage<T = unknown> {
   type: WsMessageType
   data: T
+  sequence?: number
+  event_id?: string
 }
 
 export type WsReadingMessage = WsMessage<ApiReading>

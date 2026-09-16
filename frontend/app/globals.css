@@ -223,6 +223,53 @@ select:focus-visible {
 
 @keyframes heliosShockSlideIn { from { transform: translateX(24px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 
+.helios-network-visual,
+.helios-risk-map {
+	width: 100%;
+	overflow: hidden;
+	border-radius: 20px;
+	background: #050505;
+}
+
+.helios-network-visual { height: 360px; }
+.helios-risk-map { height: 420px; }
+.helios-network-visual svg,
+.helios-risk-map svg { display: block; }
+
+.helios-avatar-orbit {
+	position: absolute;
+	inset: 18%;
+	border: 1px solid rgba(255, 138, 127, 0.38);
+	border-radius: 999px;
+	transform: rotate(-24deg);
+	animation: heliosAvatarOrbit 5s linear infinite;
+	pointer-events: none;
+}
+
+.helios-avatar-orbit::after {
+	content: '';
+	position: absolute;
+	top: -3px;
+	left: 50%;
+	width: 5px;
+	height: 5px;
+	border-radius: 999px;
+	background: var(--accent-2);
+	box-shadow: 0 0 12px var(--accent-2);
+}
+
+.helios-network-pulse {
+	transform-box: fill-box;
+	transform-origin: center;
+	animation: heliosNetworkPulse 3.8s ease-in-out infinite;
+}
+
+@keyframes heliosAvatarOrbit { to { transform: rotate(336deg); } }
+@keyframes heliosNetworkPulse {
+	0%, 100% { opacity: 0.62; transform: scale(0.98); }
+	50% { opacity: 1; transform: scale(1.04); }
+}
+
 @media (max-width: 640px) {
 	.card { padding: 1rem; }
 	.demo-instruction { max-width: calc(100vw - 24px); left: 12px !important; right: 12px; }
@@ -230,6 +277,9 @@ select:focus-visible {
 }
 
 @media (prefers-reduced-motion: reduce) {
+	.helios-avatar-orbit,
+	.helios-network-pulse { animation: none; }
+
 	*, *::before, *::after {
 		animation-duration: 0.001ms !important;
 		animation-iteration-count: 1 !important;

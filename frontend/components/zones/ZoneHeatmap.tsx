@@ -6,6 +6,7 @@ import Spinner from '../ui/Spinner'
 import EmptyState from '../ui/EmptyState'
 import Skeleton from '../ui/Skeleton'
 import { useRouter } from 'next/navigation'
+import { getDemoMeters, getDemoZones, isDemoModeEnabled } from '../../lib/demo'
 
 type ZoneOverview = {
   id: number
@@ -28,6 +29,7 @@ type Meter = {
 
 function zoneRiskLabel(risk: string) {
   if (!risk) return 'Unknown'
+  if (risk === 'critical') return 'Critical — Act now'
   if (risk === 'high') return 'High — Prioritize'
   if (risk === 'medium') return 'Elevated — Review'
   return 'Normal — Monitor'
@@ -85,7 +87,19 @@ export default function ZoneHeatmap({ columns = 4 }: { columns?: number }) {
       setLoading(true)
       setError(null)
       try {
-        const res = await get<ZoneOverview[]>('/zones/overview')
+        const res: ZoneOverview[] = isDemoModeEnabled()
+          ? getDemoZones().map((zone) => ({
+              id: zone.id,
+              name: zone.name,
+              city: zone.city,
+              state: zone.state,
+              meter_count: zone.meter_count ?? 0,
+              alert_count: zone.alert_count ?? 0,
+              anomaly_count: zone.anomaly_count ?? 0,
+              anomaly_density: zone.anomaly_density ?? 0,
+              risk: zone.risk ?? 'low',
+            }))
+          : await get<ZoneOverview[]>('/zones/overview')
         if (!mounted) return
         setZones(res || [])
       } catch (err: any) {
@@ -101,14 +115,25 @@ export default function ZoneHeatmap({ columns = 4 }: { columns?: number }) {
     }
   }, [])
 
-  const maxDensity = Math.max(...(zones.map((z) => z.anomaly_density) || [0, 0.0001]))
+  const maxDensity = Math.max(0, ...zones.map((z) => z.anomaly_density || 0))
+  const columnClass = columns === 2
+    ? 'lg:grid-cols-2'
+    : columns === 3
+    ? 'lg:grid-cols-3'
+    : columns === 5
+    ? 'lg:grid-cols-5'
+    : 'lg:grid-cols-4'
 
   async function openZone(z: ZoneOverview) {
     setSelectedZone(z)
     setZoneMeters(null)
     setLoadingMeters(true)
     try {
-      const res = await get<Meter[]>(`/meters/by-zone/${z.id}`)
+      const res: Meter[] = isDemoModeEnabled()
+        ? getDemoMeters()
+            .filter((meter) => meter.zone_id === z.id)
+            .map((meter) => ({ ...meter, status: meter.status ?? 'unknown' }))
+        : await get<Meter[]>(`/meters/by-zone/${z.id}`)
       setZoneMeters(res || [])
     } catch (e) {
       setZoneMeters([])
@@ -133,7 +158,7 @@ export default function ZoneHeatmap({ columns = 4 }: { columns?: number }) {
       ) : zones.length === 0 ? (
         <div className="card p-6"><EmptyState title="No zones" description="No zones available to display." /></div>
       ) : (
-        <div className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-${columns} gap-4`}>
+        <div className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 ${columnClass} gap-4`}>
           {zones.map((z) => {
             const norm = maxDensity > 0 ? Math.min(1, z.anomaly_density / maxDensity) : 0
             const color = gradientColor('#671515', '#e84b4b', norm)
@@ -159,12 +184,17 @@ export default function ZoneHeatmap({ columns = 4 }: { columns?: number }) {
 
       {/* Drawer / modal for zone details */}
       {selectedZone && (
-        <div className="fixed inset-0 z-50">
-          <div className="absolute inset-0 bg-black/40" onClick={closeZone} />
-          <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full max-w-4xl bg-[var(--bg)] rounded-lg shadow-2xl p-6 transition-transform">
+        <div className="fixed inset-0 z-50" role="presentation">
+          <button type="button" aria-label="Close zone details" className="absolute inset-0 h-full w-full cursor-default bg-black/40" onClick={closeZone} />
+          <div
+            className="absolute left-1/2 top-1/2 max-h-[calc(100vh-2rem)] w-[calc(100%-1rem)] max-w-4xl -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-lg bg-[var(--bg)] p-4 shadow-2xl transition-transform sm:w-[calc(100%-2rem)] sm:p-6"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="zone-details-title"
+          >
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h3 className="text-xl font-semibold">{selectedZone.name}</h3>
+                <h3 id="zone-details-title" className="text-xl font-semibold">{selectedZone.name}</h3>
                 <div className="text-sm text-[var(--muted)]">Status: {zoneRiskLabel(selectedZone.risk)}</div>
               </div>
               <div>
@@ -197,7 +227,7 @@ export default function ZoneHeatmap({ columns = 4 }: { columns?: number }) {
                             <div className="text-xs text-[var(--muted)]">{m.meter_number}</div>
                           </div>
                           <div>
-                            <button onClick={() => router.push(`/meters/${m.id}`)} className="px-2 py-1 rounded bg-white/6">View</button>
+                            <button onClick={() => router.push(`/dashboard/meters/${m.id}`)} className="px-2 py-1 rounded bg-white/6">View</button>
                           </div>
                         </div>
                       ))

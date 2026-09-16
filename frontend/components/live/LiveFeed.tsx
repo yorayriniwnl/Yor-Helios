@@ -5,6 +5,7 @@ import { get } from '../../lib/api'
 import connectWebSocket, { addWebSocketListener } from '../../lib/websocket'
 import Spinner from '../ui/Spinner'
 import EmptyState from '../ui/EmptyState'
+import { getDemoAlerts, isDemoModeEnabled } from '../../lib/demo'
 
 type FeedType = 'reading' | 'alert' | 'anomaly'
 
@@ -25,6 +26,13 @@ function mapSeverityFromScore(score?: number) {
   if (score >= 0.66) return 'high'
   if (score >= 0.33) return 'medium'
   return 'low'
+}
+
+function normalizeSeverity(severity?: string, score?: number): string {
+  if (severity === 'critical' || severity === 'high' || severity === 'medium' || severity === 'low') {
+    return severity
+  }
+  return mapSeverityFromScore(score)
 }
 
 function severityLabel(s: string | undefined) {
@@ -58,7 +66,7 @@ function severityColor(s: string | undefined) {
 function formatFeedTitle(a: any) {
   const raw = (a.explanation || a.type || `Alert ${a.id}`) as string
   const txt = raw.toLowerCase()
-  const sev = mapSeverityFromScore(a.score)
+  const sev = normalizeSeverity(a.severity, a.score)
 
   if (txt.includes('tamper') || txt.includes('tampering')) return 'Potential Theft Detected'
   if (txt.includes('spike') || txt.includes('voltage') || txt.includes('overvoltage')) return 'Transformer Stress Alert'
@@ -79,10 +87,12 @@ export default function LiveFeed({ maxItems = 100 }: { maxItems?: number }) {
       setLoading(true)
       setError(null)
       try {
-        const [alerts, anomalies] = await Promise.all([
-          get<any[]>('/alerts', undefined, { cacheMs: 10000 }).catch(() => []),
-          get<any[]>('/anomalies', undefined, { cacheMs: 10000 }).catch(() => []),
-        ])
+        const [alerts, anomalies] = isDemoModeEnabled()
+          ? [getDemoAlerts(), []]
+          : await Promise.all([
+              get<any[]>('/alerts/', undefined, { cacheMs: 10000 }).catch(() => []),
+              get<any[]>('/anomalies/', undefined, { cacheMs: 10000 }).catch(() => []),
+            ])
 
         const mappedAlerts: FeedItem[] = (alerts || []).map((a) => ({
           id: `alert-${a.id}`,
@@ -90,7 +100,7 @@ export default function LiveFeed({ maxItems = 100 }: { maxItems?: number }) {
           timestamp: a.created_at || a.timestamp,
           title: formatFeedTitle(a),
           subtitle: a.meter_id ? `Meter ${a.meter_id}` : undefined,
-          severity: mapSeverityFromScore(a.score),
+          severity: normalizeSeverity(a.severity, a.score),
           raw: a,
         }))
 
@@ -134,7 +144,7 @@ export default function LiveFeed({ maxItems = 100 }: { maxItems?: number }) {
             timestamp: a.created_at || a.timestamp || new Date().toISOString(),
             title: a.explanation || a.type || `Alert ${a.id}`,
             subtitle: a.meter_id ? `Meter ${a.meter_id}` : undefined,
-            severity: mapSeverityFromScore(a.score),
+            severity: normalizeSeverity(a.severity, a.score),
             raw: a,
             isNew: true,
           }
@@ -157,7 +167,7 @@ export default function LiveFeed({ maxItems = 100 }: { maxItems?: number }) {
             timestamp: a.created_at || a.timestamp || new Date().toISOString(),
             title: a.explanation || a.type || `Anomaly ${a.id}`,
             subtitle: a.meter_id ? `Meter ${a.meter_id}` : undefined,
-            severity: a.severity || mapSeverityFromScore(a.score),
+            severity: normalizeSeverity(a.severity, a.score),
             raw: a,
             isNew: true,
           }
@@ -180,10 +190,12 @@ export default function LiveFeed({ maxItems = 100 }: { maxItems?: number }) {
     }
 
     const remove = addWebSocketListener(listener)
-    try {
-      connectWebSocket()
-    } catch (e) {
-      // ignore
+    if (!isDemoModeEnabled()) {
+      try {
+        connectWebSocket()
+      } catch (e) {
+        // ignore
+      }
     }
 
     return () => {

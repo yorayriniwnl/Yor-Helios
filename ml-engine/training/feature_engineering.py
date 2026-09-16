@@ -26,18 +26,19 @@ except Exception:  # pragma: no cover - runtime dependency
 
 
 def _extract_from_record(rec: Any) -> dict:
+    def first_present(source: Any, *keys: str):
+        for key in keys:
+            value = source.get(key) if isinstance(source, dict) else getattr(source, key, None)
+            if value is not None:
+                return value
+        return None
+
     if rec is None:
         return {"timestamp": None, "power_consumption": None, "voltage": None, "current": None}
-    if isinstance(rec, dict):
-        ts = rec.get("timestamp") or rec.get("time")
-        p = rec.get("power_consumption") or rec.get("power") or rec.get("consumption")
-        v = rec.get("voltage")
-        c = rec.get("current")
-    else:
-        ts = getattr(rec, "timestamp", None)
-        p = getattr(rec, "power_consumption", None) or getattr(rec, "power", None)
-        v = getattr(rec, "voltage", None)
-        c = getattr(rec, "current", None)
+    ts = first_present(rec, "timestamp", "time")
+    p = first_present(rec, "power_consumption", "power", "consumption")
+    v = first_present(rec, "voltage")
+    c = first_present(rec, "current")
     return {"timestamp": ts, "power_consumption": p, "voltage": v, "current": c}
 
 

@@ -4,6 +4,7 @@ import React, { useMemo, useState, useCallback, useEffect } from 'react'
 import { MapContainer, TileLayer, Polygon, CircleMarker, Popup } from 'react-leaflet'
 import HeatmapLayer from './HeatmapLayer'
 import { get } from '../../lib/api'
+import { getDemoAlerts, getDemoMeters, getDemoZones, isDemoModeEnabled } from '../../lib/demo'
 
 type LatLng = [number, number]
 
@@ -116,11 +117,13 @@ export default function MapLayer() {
     let cancelled = false
     async function load() {
       try {
-        const [z, m, a] = await Promise.all([
-          get<ZoneOverview[]>('/zones/overview').catch(() => []),
-          get<Meter[]>('/meters').catch(() => []),
-          get<Alert[]>('/alerts', { params: { limit: 30 } }).catch(() => []),
-        ])
+        const [z, m, a] = isDemoModeEnabled()
+          ? [getDemoZones(), getDemoMeters(), getDemoAlerts()]
+          : await Promise.all([
+              get<ZoneOverview[]>('/zones/overview').catch(() => []),
+              get<Meter[]>('/meters/').catch(() => []),
+              get<Alert[]>('/alerts/', { params: { limit: 30 } }).catch(() => []),
+            ])
         if (cancelled) return
         setZones(Array.isArray(z) ? z : [])
         setMeters(Array.isArray(m) ? m : [])
@@ -265,10 +268,10 @@ export default function MapLayer() {
       </MapContainer>
 
       {selectedZone && (
-        <div className="absolute right-0 top-0 h-full panel z-50 overflow-auto p-4">
+        <div className="absolute right-0 top-0 z-50 h-full panel max-w-[calc(100%-1rem)] overflow-auto p-4" role="dialog" aria-modal="true" aria-labelledby="map-zone-title">
           <div className="flex items-start justify-between mb-3">
             <div>
-              <h3 className="text-lg font-semibold">{selectedZone.name}</h3>
+              <h3 id="map-zone-title" className="text-lg font-semibold">{selectedZone.name}</h3>
               <div className="text-sm text-[var(--muted)]">
                 Anomaly density: {(selectedZone.anomaly_density * 100).toFixed(0)}%
               </div>

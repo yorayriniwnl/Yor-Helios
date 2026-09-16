@@ -8,6 +8,7 @@ can't be hit in a real deployment.
 """
 from datetime import datetime
 
+from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -18,6 +19,7 @@ try:
     from backend.app.repositories.reading_repository import create_reading as repo_create_reading
     from backend.app.services.alert_service import create_alert as svc_create_alert
     from backend.app.schemas.alert import AlertResponse
+    from backend.app.dependencies.auth import get_current_user, require_roles
 except Exception:
     from ...core.database import get_db
     from ...core.config import settings
@@ -25,12 +27,13 @@ except Exception:
     from ...repositories.reading_repository import create_reading as repo_create_reading
     from ...services.alert_service import create_alert as svc_create_alert
     from ...schemas.alert import AlertResponse
+    from ...dependencies.auth import get_current_user, require_roles
 
 router = APIRouter(prefix="/demo", tags=["demo"])
 
 
 @router.post("/trigger_alert", response_model=AlertResponse)
-def trigger_demo_alert(db: Session = Depends(get_db)):
+def trigger_demo_alert(db: Session = Depends(get_db), current_user: Any = Depends(require_roles("admin", "administrator", "operator"))):
     if getattr(settings, "ENV", "development") == "production":
         raise HTTPException(status_code=404, detail="Not found")
 

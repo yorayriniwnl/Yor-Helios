@@ -13,6 +13,11 @@ from typing import DefaultDict, Deque
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
+try:
+    from backend.app.core.config import settings
+except Exception:
+    from ..core.config import settings
+
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
     def __init__(self, app, max_requests: int = 100, window_seconds: int = 60):
@@ -24,9 +29,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self._lock = asyncio.Lock()
 
     async def dispatch(self, request, call_next):
-        # Determine client IP (try X-Forwarded-For first)
+        # Only trust forwarding headers when the deployment explicitly sits
+        # behind a trusted proxy. Otherwise clients can spoof their identity
+        # and bypass the limiter by rotating X-Forwarded-For values.
         try:
-            xff = request.headers.get("x-forwarded-for")
+            xff = request.headers.get("x-forwarded-for") if getattr(settings, "TRUST_PROXY", False) else None
             if xff:
                 ip = xff.split(",")[0].strip()
             else:

@@ -3,6 +3,9 @@
 Adds the following headers when appropriate:
 - `X-Frame-Options: DENY`
 - `X-Content-Type-Options: nosniff`
+- `Referrer-Policy: no-referrer`
+- `Permissions-Policy` with sensitive browser capabilities disabled
+- a conservative API `Content-Security-Policy`
 - `Strict-Transport-Security` (only set when request appears to be HTTPS)
 """
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -20,6 +23,15 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             response.headers.setdefault("X-Frame-Options", "DENY")
             # Prevent MIME sniffing
             response.headers.setdefault("X-Content-Type-Options", "nosniff")
+            response.headers.setdefault("Referrer-Policy", "no-referrer")
+            response.headers.setdefault(
+                "Permissions-Policy",
+                "camera=(), microphone=(), geolocation=(), payment=()",
+            )
+            response.headers.setdefault(
+                "Content-Security-Policy",
+                "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+            )
 
             # Only set HSTS when request scheme indicates HTTPS. This avoids
             # setting HSTS for local development served over HTTP.

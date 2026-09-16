@@ -1,11 +1,13 @@
 "use client"
 
 import React, { useEffect, useState } from 'react'
+import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import ThreeHero from '../components/hero/ThreeHero'
-import ThreeRiskMap from '../components/hero/ThreeRiskMap'
 import { HOME_HIGHLIGHTS, HOME_PAGE_GROUPS, HOME_WORKFLOWS, getZoneRiskLabel } from '../lib/navigation'
+
+const ThreeHero = dynamic(() => import('../components/hero/ThreeHero'), { ssr: false })
+const ThreeRiskMap = dynamic(() => import('../components/hero/ThreeRiskMap'), { ssr: false })
 
 const DEFAULT_ZONE = { id: 5, label: 'Zone E', risk: 0.95 }
 
@@ -156,7 +158,6 @@ export default function Home() {
                     Meter detail views need a live meter ID from the list screens before they can open.
                   </p>
                   <div className="mt-4 space-y-2">
-                    <code className="block rounded-2xl bg-black/20 px-3 py-2 text-sm text-[var(--fg)]">/meters/[meterId]</code>
                     <code className="block rounded-2xl bg-black/20 px-3 py-2 text-sm text-[var(--fg)]">/dashboard/meters/[id]</code>
                   </div>
                 </div>
@@ -166,7 +167,7 @@ export default function Home() {
                     Fastest route in
                   </div>
                   <p className="mt-3 text-sm leading-6 text-[var(--muted)]">
-                    Start with <span className="font-semibold text-[var(--fg)]">/login</span> for the full operator path, or jump straight into <span className="font-semibold text-[var(--fg)]">/dashboard</span> when you just need the workspace.
+                    Start with <span className="font-semibold text-[var(--fg)]">/login</span> for the authenticated operator path, then open <span className="font-semibold text-[var(--fg)]">/dashboard</span> when you need the workspace.
                   </p>
                 </div>
               </div>

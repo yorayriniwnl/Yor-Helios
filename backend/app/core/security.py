@@ -8,6 +8,8 @@ from typing import Optional, Dict, Any
 import hashlib
 import hmac
 import os
+import secrets
+import uuid
 
 import jwt
 
@@ -34,9 +36,12 @@ _pwd_context = _try_passlib()
 
 def hash_password(password: str) -> str:
     """Hash a plaintext password."""
-    if _pwd_context is not None:
+    # bcrypt implementations reject passwords over 72 UTF-8 bytes. Do not
+    # silently truncate them: that would make two different passwords share
+    # the same credential. PBKDF2 is the portable path for long passwords.
+    if _pwd_context is not None and len(password.encode("utf-8")) <= 72:
         try:
-            return _pwd_context.hash(password[:72])  # bcrypt 72-byte limit
+            return _pwd_context.hash(password)
         except Exception:
             pass
     # PBKDF2-SHA256 fallback (compatible everywhere)
@@ -56,7 +61,9 @@ def verify_password(password: str, hashed: str) -> bool:
             return False
     if _pwd_context is not None:
         try:
-            return _pwd_context.verify(password[:72], hashed)
+            if len(password.encode("utf-8")) > 72:
+                return False
+            return _pwd_context.verify(password, hashed)
         except Exception:
             pass
     return False
@@ -64,12 +71,39 @@ def verify_password(password: str, hashed: str) -> bool:
 
 # ── JWT ───────────────────────────────────────────────────────────────────────
 
-def create_access_token(user_id: int, expires_delta: Optional[timedelta] = None) -> str:
-    """Create a JWT access token containing `user_id` and expiry."""
+ACCESS_TOKEN_EXPIRE_MINUTES = 15
+REFRESH_TOKEN_EXPIRE_DAYS = 30
+
+
+def hash_refresh_token(token: str) -> str:
+    """Hash opaque refresh material before it is stored or queried."""
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def create_refresh_token() -> tuple[str, str]:
+    """Return raw refresh material and its storage hash."""
+    raw_token = secrets.token_urlsafe(48)
+    return raw_token, hash_refresh_token(raw_token)
+
+
+def create_access_token(
+    user_id: int,
+    expires_delta: Optional[timedelta] = None,
+    session_id: Optional[str] = None,
+) -> str:
+    """Create a short-lived JWT with an explicit subject and issued-at time."""
     if expires_delta is None:
-        expires_delta = timedelta(minutes=60)
+        expires_delta = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     expire = datetime.now(timezone.utc) + expires_delta
-    payload: Dict[str, Any] = {"user_id": user_id, "exp": expire}
+    payload: Dict[str, Any] = {
+        "sub": str(user_id),
+        "user_id": user_id,
+        "iat": datetime.now(timezone.utc),
+        "jti": uuid.uuid4().hex,
+        "exp": expire,
+    }
+    if session_id:
+        payload["sid"] = session_id
     token = jwt.encode(payload, settings.JWT_SECRET, algorithm="HS256")
     return token.decode("utf-8") if isinstance(token, bytes) else token
 

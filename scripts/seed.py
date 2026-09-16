@@ -79,6 +79,7 @@ def seed(fast: bool = False, reset: bool = False) -> None:
     try:
         from backend.app.core.database import SessionLocal, engine, Base
         from backend.app.core.security import hash_password
+        from backend.app.services.role_service import DEMO_ROLE_BY_EMAIL, backfill_null_roles, ensure_default_roles
         from backend.app.models.zone import Zone
         from backend.app.models.meter import Meter
         from backend.app.models.user import User
@@ -102,6 +103,9 @@ def seed(fast: bool = False, reset: bool = False) -> None:
     rng = random.Random(42)
 
     try:
+        demo_roles = ensure_default_roles(db)
+        backfill_null_roles(db)
+
         # ── Zones ─────────────────────────────────────────────────────────
         created_zones: List[Zone] = []
         for zspec in ZONES:
@@ -118,10 +122,17 @@ def seed(fast: bool = False, reset: bool = False) -> None:
         for uspec in USERS:
             existing = db.query(User).filter(User.email == uspec["email"]).first()
             if existing:
+                existing.role_id = demo_roles[DEMO_ROLE_BY_EMAIL[uspec["email"]]].id
+                db.commit()
                 created_users.append(existing)
             else:
                 hashed = hash_password(uspec["password"])
-                u = User(name=uspec["name"], email=uspec["email"], password_hash=hashed)
+                u = User(
+                    name=uspec["name"],
+                    email=uspec["email"],
+                    password_hash=hashed,
+                    role_id=demo_roles[DEMO_ROLE_BY_EMAIL[uspec["email"]]].id,
+                )
                 db.add(u)
                 try:
                     db.commit()

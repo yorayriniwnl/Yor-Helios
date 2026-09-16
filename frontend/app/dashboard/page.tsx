@@ -11,6 +11,7 @@ import ShockAlertButton from '../../components/ui/ShockAlertButton'
 import ExplanationPanel from '../../components/impact/ExplanationPanel'
 import ErrorMessage from '../../components/ui/ErrorMessage'
 import { useDashboard, useAlerts } from '../../hooks'
+import { isDemoModeEnabled } from '../../lib/demo'
 import { severityFromScore } from '../../features/alerts'
 import type { AlertSeverity } from '../../types/api'
 
@@ -58,6 +59,16 @@ export default function DashboardPage() {
     [severityData]
   )
 
+  const visibleCriticalAlerts = useMemo(
+    () => alerts.filter((alert) => alert.severity === 'critical' && alert.status !== 'resolved').length,
+    [alerts],
+  )
+  const visibleOpenAlerts = useMemo(
+    () => alerts.filter((alert) => alert.status !== 'resolved').length,
+    [alerts],
+  )
+  const demoMode = isDemoModeEnabled()
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -86,7 +97,10 @@ export default function DashboardPage() {
           loading={loadingSummary}
           totalMeters={summary?.total_meters ?? 0}
           totalAlerts={summary?.total_alerts ?? 0}
+          openAlerts={demoMode ? visibleOpenAlerts : (summary?.open_alerts ?? summary?.total_alerts ?? 0)}
+          criticalAlerts={demoMode ? visibleCriticalAlerts : (summary?.critical_alerts ?? visibleCriticalAlerts)}
           totalReadings={summary?.total_readings ?? 0}
+          zoneLossPct={summary?.zone_loss_percentage}
         />
       </div>
 

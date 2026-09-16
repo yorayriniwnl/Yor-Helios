@@ -124,11 +124,18 @@ def _generate_synthetic(n: int = 5_000):
 def _build_feature_matrix(records):
     import numpy as np
 
+    def first_present(record, *keys):
+        for key in keys:
+            value = record.get(key) if isinstance(record, dict) else getattr(record, key, None)
+            if value is not None:
+                return value
+        return None
+
     rows = []
     for r in records:
-        p = float(r.get("power_consumption") or r.get("power") or 0)
-        v = float(r.get("voltage") or 220)
-        c = float(r.get("current") or 1)
+        p = float(first_present(r, "power_consumption", "power") if first_present(r, "power_consumption", "power") is not None else 0)
+        v = float(first_present(r, "voltage") if first_present(r, "voltage") is not None else 220)
+        c = float(first_present(r, "current") if first_present(r, "current") is not None else 1)
         pf = p / (v * c) if v * c != 0 else 0.0
         rows.append([p, v, c, pf])
 

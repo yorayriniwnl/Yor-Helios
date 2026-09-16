@@ -6,6 +6,7 @@ def make_dummy_user(uid=1, pw_hash="hashed"):
         def __init__(self, id_, password_hash):
             self.id = id_
             self.password_hash = password_hash
+            self.is_active = True
 
     return Dummy(uid, pw_hash)
 

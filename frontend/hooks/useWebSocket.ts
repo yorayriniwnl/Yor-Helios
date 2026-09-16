@@ -13,6 +13,7 @@ import connectWebSocket, {
   addWebSocketListener,
 } from '../lib/websocket'
 import type { WsMessage } from '../types/api'
+import { isDemoModeEnabled } from '../lib/demo'
 
 export type WsStatus = 'connecting' | 'open' | 'closed' | 'error' | 'demo'
 
@@ -34,19 +35,11 @@ export interface UseWebSocketResult {
 
 function buildWsUrl(): string {
   if (typeof window === 'undefined') return 'ws://localhost:8000/ws/live'
-  const host =
-    (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000')
-      .replace(/^https?/, 'ws')
-      .replace(/\/$/, '')
-  return `${host}/ws/live`
-}
-
-function isDemoMode(): boolean {
-  try {
-    return typeof window !== 'undefined' && localStorage.getItem('helios.demo') === '1'
-  } catch {
-    return false
-  }
+  let origin = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000').replace(/\/$/, '')
+  if (!/^https?:\/\//i.test(origin)) origin = new URL(origin, window.location.origin).origin
+  origin = origin.replace(/\/api\/v1$/i, '').replace(/\/api$/i, '')
+  const base = `${origin.replace(/^http/i, 'ws')}/ws/live`
+  return base
 }
 
 const BASE_DELAY = 1_000   // 1 s initial backoff
@@ -73,7 +66,7 @@ export function useWebSocket(opts: UseWebSocketOptions = {}): UseWebSocketResult
   const connect = useCallback(() => {
     if (typeof window === 'undefined') return
 
-    if (isDemoMode()) {
+    if (isDemoModeEnabled()) {
       setStatus('demo')
       return
     }
@@ -114,7 +107,7 @@ export function useWebSocket(opts: UseWebSocketOptions = {}): UseWebSocketResult
       if (!isMounted.current) return
       setStatus('error')
     }
-  }, [url])  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [url])
 
   const disconnect = useCallback(() => {
     clearRetry()

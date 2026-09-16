@@ -116,7 +116,7 @@ export default function ZonesPage() {
                   >
                     <td className="px-4 py-3 font-medium">
                       <Link
-                        href={`/dashboard/zones/${z.id}`}
+                        href={`/dashboard/zones?zone=${z.id}`}
                         className="hover:underline"
                         style={{ color: 'var(--accent)' }}
                       >

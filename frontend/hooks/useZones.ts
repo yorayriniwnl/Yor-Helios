@@ -6,7 +6,7 @@
  */
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { get } from '../lib/api'
-import { isDemoModeEnabled } from '../lib/demo'
+import { getDemoZones, isDemoModeEnabled } from '../lib/demo'
 import type { ApiZone, ZoneOverview } from '../types/api'
 
 export interface UseZonesOptions {
@@ -38,13 +38,20 @@ export function useZones(opts: UseZonesOptions = {}): UseZonesResult {
   const fetchZones = useCallback(async () => {
     setLoading(true)
     setError(null)
+    if (isDemoModeEnabled()) {
+      if (isMounted.current) {
+        setZones(getDemoZones().slice(skip, skip + limit))
+        setLoading(false)
+      }
+      return
+    }
     try {
       // Try the enriched overview endpoint first; fall back to plain list
       let data: ZoneOverview[] = []
       try {
         data = await get<ZoneOverview[]>('/zones/overview', { params: { skip, limit } })
       } catch {
-        const plain = await get<ApiZone[]>('/zones', { params: { skip, limit } })
+        const plain = await get<ApiZone[]>('/zones/', { params: { skip, limit } })
         data = Array.isArray(plain) ? plain : []
       }
       if (isMounted.current) setZones(data)
@@ -60,6 +67,7 @@ export function useZones(opts: UseZonesOptions = {}): UseZonesResult {
   }, [fetchZones])
 
   const fetchZoneDetail = useCallback(async (id: number): Promise<ZoneOverview | null> => {
+    if (isDemoModeEnabled()) return getDemoZones().find((zone) => zone.id === id) ?? null
     try {
       return await get<ZoneOverview>(`/zones/${id}`)
     } catch {

@@ -1,5 +1,5 @@
 """Reading model."""
-from sqlalchemy import Column, Integer, ForeignKey, DateTime, Float, Index
+from sqlalchemy import Column, Integer, ForeignKey, DateTime, Float, Index, String
 
 try:
     from backend.app.models.base import BaseModel
@@ -15,6 +15,8 @@ class Reading(BaseModel):
     voltage = Column(Float, nullable=True)
     current = Column(Float, nullable=True)
     power_consumption = Column(Float, nullable=True)
+    # Optional client-provided idempotency key for retried telemetry uploads.
+    ingest_key = Column(String(128), nullable=True, unique=True, index=True)
 
     __table_args__ = (
         Index("ix_readings_meter_timestamp", "meter_id", "timestamp"),

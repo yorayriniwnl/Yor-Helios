@@ -15,6 +15,7 @@ from fastapi import HTTPException
 from starlette.requests import Request
 
 from backend.app.core.cache import _init_client
+from backend.app.core.config import settings
 
 # In-memory fallback storage: maps key -> deque[timestamp]
 _in_memory: DefaultDict[str, Deque[float]] = defaultdict(deque)
@@ -23,7 +24,7 @@ _in_memory_lock = asyncio.Lock()
 
 def _client_ip(request: Request) -> str:
     try:
-        xff = request.headers.get("x-forwarded-for")
+        xff = request.headers.get("x-forwarded-for") if getattr(settings, "TRUST_PROXY", False) else None
         if xff:
             return xff.split(",")[0].strip()
         client = request.client
@@ -92,6 +93,25 @@ async def login_rate_limit(request: Request):
         raise HTTPException(status_code=429, detail="Too Many Requests", headers={"Retry-After": str(retry)})
 
 
+async def refresh_rate_limit(request: Request):
+    """Limit refresh-token rotation attempts per client IP."""
+    ip = _client_ip(request)
+    key = f"rl:refresh:{ip}"
+    limit = 20
+    window = 60
+
+    client = _init_client()
+    if client is not None:
+        retry = _redis_check(client, key, limit, window)
+        if retry:
+            raise HTTPException(status_code=429, detail="Too Many Requests", headers={"Retry-After": str(retry)})
+        return
+
+    retry = await _in_memory_check(key, limit, window)
+    if retry:
+        raise HTTPException(status_code=429, detail="Too Many Requests", headers={"Retry-After": str(retry)})
+
+
 async def readings_rate_limit(request: Request):
     """Limit readings ingestion per client IP.
 
@@ -101,6 +121,25 @@ async def readings_rate_limit(request: Request):
     key = f"rl:readings:{ip}"
     limit = 120
     window = 60
+
+    client = _init_client()
+    if client is not None:
+        retry = _redis_check(client, key, limit, window)
+        if retry:
+            raise HTTPException(status_code=429, detail="Too Many Requests", headers={"Retry-After": str(retry)})
+        return
+
+    retry = await _in_memory_check(key, limit, window)
+    if retry:
+        raise HTTPException(status_code=429, detail="Too Many Requests", headers={"Retry-After": str(retry)})
+
+
+async def registration_rate_limit(request: Request):
+    """Limit account creation attempts per client IP."""
+    ip = _client_ip(request)
+    key = f"rl:registration:{ip}"
+    limit = 5
+    window = 300
 
     client = _init_client()
     if client is not None:

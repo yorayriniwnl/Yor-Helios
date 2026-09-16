@@ -1,106 +1,86 @@
 "use client"
 
-import React, { useRef, useMemo, useState } from 'react'
-import { Canvas, useFrame } from '@react-three/fiber'
-import * as THREE from 'three'
-import { OrbitControls, Html } from '@react-three/drei'
+import { useState } from 'react'
 
-type Zone = { id: number; x: number; z: number; radius: number; risk: number; label?: string }
+export type Zone = { id: number; x: number; y: number; radius: number; risk: number; label?: string }
 
-function ZoneMeshes({ zones, onClick }: { zones: Zone[]; onClick?: (z: Zone) => void }) {
-  const refs = useRef<(THREE.Mesh | null)[]>([])
-  const ringRefs = useRef<(THREE.Mesh | null)[]>([])
-  const [hovered, setHovered] = useState<number | null>(null)
+const ZONES: Zone[] = [
+  { id: 1, x: 150, y: 140, radius: 32, risk: 0.8, label: 'Zone A' },
+  { id: 2, x: 330, y: 108, radius: 44, risk: 0.4, label: 'Zone B' },
+  { id: 3, x: 530, y: 150, radius: 35, risk: 0.2, label: 'Zone C' },
+  { id: 4, x: 250, y: 292, radius: 41, risk: 0.65, label: 'Zone D' },
+  { id: 5, x: 500, y: 292, radius: 27, risk: 0.95, label: 'Zone E' },
+]
 
-  useFrame((state) => {
-    const t = state.clock.getElapsedTime()
-    for (let i = 0; i < zones.length; i++) {
-      const mesh = refs.current[i]
-      const ring = ringRefs.current[i]
-      const zone = zones[i]
-      if (!mesh) continue
-      const pulse = 1 + Math.sin(t * 3 + i) * 0.06 + zone.risk * 0.18
-      mesh.scale.set(pulse, 1, pulse)
-      const mat = mesh.material as THREE.MeshStandardMaterial
-      if (mat) {
-        mat.emissive = new THREE.Color(zone.risk > 0.6 ? '#e84b4b' : zone.risk > 0.3 ? '#ff8a7f' : '#671515')
-        mat.emissiveIntensity = 0.6 + zone.risk * 1.1 + (hovered === zone.id ? 0.6 : 0)
-      }
-      if (ring) {
-        ring.rotation.z += 0.008 + zone.risk * 0.02
-        ring.scale.set(1 + Math.sin(t * 2 + i) * 0.03 + zone.risk * 0.04, 1, 1 + Math.sin(t * 2 + i) * 0.03 + zone.risk * 0.04)
-      }
-    }
-  })
-
-  return (
-    <group>
-      {zones.map((z, i) => (
-        <group key={z.id} position={[z.x, 0.05, z.z]}>
-          <mesh
-            ref={(el) => {
-              refs.current[i] = el
-            }}
-            onPointerOver={(e) => { e.stopPropagation(); setHovered(z.id) }}
-            onPointerOut={(e) => { e.stopPropagation(); setHovered(null) }}
-            onPointerDown={(e) => { e.stopPropagation(); onClick && onClick(z) }}
-          >
-            <cylinderGeometry args={[z.radius, z.radius, 0.12, 32]} />
-            <meshStandardMaterial color={'#050505'} metalness={0.2} roughness={0.4} emissive={'#000'} emissiveIntensity={0.6} transparent />
-          </mesh>
-
-          <mesh
-            ref={(el) => {
-              ringRefs.current[i] = el
-            }}
-            rotation={[Math.PI / 2, 0, 0]}
-            position={[0, 0.06, 0]}
-          >
-            <torusGeometry args={[z.radius + 0.03, 0.01, 8, 64]} />
-            <meshBasicMaterial color={z.risk > 0.6 ? '#e84b4b' : z.risk > 0.3 ? '#ff8a7f' : '#671515'} transparent opacity={0.45} blending={THREE.AdditiveBlending} />
-          </mesh>
-
-          <Html position={[0, 0.2, 0]} center>
-            <div style={{ padding: '4px 8px', background: 'rgba(0,0,0,0.6)', color: 'white', fontSize: 12, borderRadius: 6 }}>
-              {z.label || `Zone ${z.id}`}
-            </div>
-          </Html>
-        </group>
-      ))}
-    </group>
-  )
+function zoneColor(risk: number) {
+  return risk > 0.6 ? '#e84b4b' : risk > 0.3 ? '#ff8a7f' : '#671515'
 }
 
 export default function ThreeRiskMap({ onZoneClick }: { onZoneClick?: (zone: Zone) => void }) {
-  const zones = useMemo<Zone[]>(
-    () => [
-      { id: 1, x: -2, z: -1.6, radius: 0.6, risk: 0.8, label: 'Zone A' },
-      { id: 2, x: 0, z: -2.1, radius: 0.9, risk: 0.4, label: 'Zone B' },
-      { id: 3, x: 2, z: -1.2, radius: 0.7, risk: 0.2, label: 'Zone C' },
-      { id: 4, x: -1.2, z: 1.6, radius: 0.85, risk: 0.65, label: 'Zone D' },
-      { id: 5, x: 1.6, z: 1.2, radius: 0.5, risk: 0.95, label: 'Zone E' },
-    ],
-    []
-  )
+  const [selected, setSelected] = useState<number | null>(null)
+
+  const selectZone = (zone: Zone) => {
+    setSelected(zone.id)
+    onZoneClick?.(zone)
+  }
 
   return (
-    <div style={{ width: '100%', height: 420, borderRadius: 12, overflow: 'hidden' }}>
-      <Canvas camera={{ position: [0, 6, 6], fov: 50 }} dpr={[1, 1.5]} shadows>
-        <color attach="background" args={["#000000"]} />
-        <ambientLight intensity={0.6} />
-        <directionalLight position={[5, 10, 5]} intensity={0.6} />
-
-        <group rotation={[-Math.PI / 2, 0, 0]}>
-          <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow position={[0, -0.01, 0]}>
-            <planeGeometry args={[12, 12]} />
-            <meshStandardMaterial color="#050505" metalness={0.2} roughness={0.9} />
-          </mesh>
-
-          <ZoneMeshes zones={zones} onClick={(z) => onZoneClick && onZoneClick(z)} />
-        </group>
-
-        <OrbitControls enablePan={true} enableZoom={true} enableRotate={true} maxPolarAngle={Math.PI / 2.1} />
-      </Canvas>
+    <div className="helios-risk-map" role="group" aria-label="Interactive zone risk map">
+      <svg viewBox="0 0 680 420" className="h-full w-full" aria-label="Solar meter zone risk map">
+        <defs>
+          <linearGradient id="helios-risk-bg" x1="0" x2="1" y1="0" y2="1">
+            <stop offset="0%" stopColor="#160808" />
+            <stop offset="100%" stopColor="#030303" />
+          </linearGradient>
+          <pattern id="helios-risk-grid" width="34" height="34" patternUnits="userSpaceOnUse">
+            <path d="M34 0H0V34" fill="none" stroke="#fff" strokeOpacity=".06" />
+          </pattern>
+        </defs>
+        <rect width="680" height="420" rx="20" fill="url(#helios-risk-bg)" />
+        <rect width="680" height="420" rx="20" fill="url(#helios-risk-grid)" />
+        <path d="M82 220h518M340 48v324" stroke="#ff8a7f" strokeOpacity=".12" strokeDasharray="4 8" />
+        {ZONES.map((zone) => {
+          const color = zoneColor(zone.risk)
+          const active = selected === zone.id
+          return (
+            <g key={zone.id}>
+              <circle cx={zone.x} cy={zone.y} r={zone.radius * 1.55} fill={color} opacity={active ? '.18' : '.1'} className="helios-network-pulse" />
+              <circle
+                cx={zone.x}
+                cy={zone.y}
+                r={zone.radius}
+                fill="#050505"
+                fillOpacity=".8"
+                stroke={color}
+                strokeWidth={active ? 3 : 2}
+                tabIndex={0}
+                role="button"
+                aria-label={`${zone.label ?? `Zone ${zone.id}`}, ${Math.round(zone.risk * 100)} percent risk`}
+                onClick={() => selectZone(zone)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault()
+                    selectZone(zone)
+                  }
+                }}
+              />
+              <circle cx={zone.x} cy={zone.y} r={Math.max(4, zone.radius * 0.22)} fill={color} />
+              <text x={zone.x} y={zone.y + zone.radius + 23} fill="#fff" fillOpacity=".82" fontSize="13" textAnchor="middle">
+                {zone.label}
+              </text>
+              <text x={zone.x} y={zone.y + 5} fill="#fff" fontSize="12" fontWeight="700" textAnchor="middle">
+                {Math.round(zone.risk * 100)}%
+              </text>
+            </g>
+          )
+        })}
+        <text x="28" y="34" fill="#fff" fillOpacity=".68" fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace" fontSize="10">
+          ZONE EXPOSURE / SELECT A NODE
+        </text>
+        <text x="28" y="394" fill="#fff" fillOpacity=".44" fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace" fontSize="10">
+          LOW &lt; 33 · WATCH 33–60 · HIGH &gt; 60
+        </text>
+      </svg>
     </div>
   )
 }

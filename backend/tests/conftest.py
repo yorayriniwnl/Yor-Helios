@@ -4,7 +4,7 @@ import pytest
 # Provide sensible defaults for tests before any app modules import DB/engine.
 os.environ.setdefault("ENV", "test")
 os.environ.setdefault("DATABASE_URL", "sqlite:///./.pytest_temp_db.sqlite")
-os.environ.setdefault("JWT_SECRET", "test_jwt_secret_1234567890")
+os.environ.setdefault("JWT_SECRET", "test_jwt_secret_1234567890_abcdef")
 
 from backend.app.core.database import engine, Base  # noqa: E402
 

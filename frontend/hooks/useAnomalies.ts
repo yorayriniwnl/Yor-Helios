@@ -41,7 +41,7 @@ export function useAnomalies(opts: UseAnomaliesOptions = {}): UseAnomaliesResult
       const params: Record<string, any> = { limit, skip }
       if (meterId != null) params.meter_id = meterId
 
-      const data = await get<ApiAnomaly[]>('/anomalies', { params })
+      const data = await get<ApiAnomaly[]>('/anomalies/', { params })
       if (isMounted.current) setAnomalies(Array.isArray(data) ? data : [])
     } catch (e: any) {
       if (isMounted.current) setError(e?.message ?? 'Failed to load anomalies')

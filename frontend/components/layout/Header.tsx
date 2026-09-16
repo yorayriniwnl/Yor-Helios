@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import useAuthStore from '../../store/authStore'
 import useAlertStore from '../../store/alertStore'
 import { BellIcon, BoltIcon, DASHBOARD_NAV_ITEMS, getPageMeta } from '../../lib/navigation'
+import { openCommandPalette } from '../ui/CommandPalette'
 
 export default function Header() {
   const pathname = usePathname() || '/dashboard'
@@ -38,7 +39,7 @@ export default function Header() {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-3">
-              <Link href="/" className="inline-flex items-center gap-3">
+              <Link href="/" aria-label="Helios home" className="inline-flex items-center gap-3">
                 <span
                   className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 shadow-[0_12px_32px_rgba(15,23,42,0.35)]"
                   style={{ background: 'linear-gradient(135deg, rgba(103,21,21,0.72), rgba(232,75,75,0.18))', color: 'var(--fg)' }}
@@ -75,6 +76,16 @@ export default function Header() {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
+            <button
+              type="button"
+              onClick={openCommandPalette}
+              className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm text-[var(--muted)] transition-colors hover:bg-white/10 hover:text-[var(--fg)]"
+              aria-label="Open command palette"
+              title="Open command palette (Ctrl K)"
+            >
+              <span className="hidden sm:inline">Command</span>
+              <kbd className="rounded border border-white/10 bg-black/20 px-1.5 py-0.5 text-[10px] font-semibold">⌘K</kbd>
+            </button>
             <Link
               href="/dashboard/alerts"
               onClick={clearUnread}

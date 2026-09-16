@@ -5,6 +5,7 @@ import Spinner from '../ui/Spinner'
 import ErrorMessage from '../ui/ErrorMessage'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { get } from '../../lib/api'
+import { isDemoModeEnabled } from '../../lib/demo'
 
 const mockData = [
   { time: '00:00', power: 95 },
@@ -41,6 +42,11 @@ export default function ConsumptionChart({
     let mounted = true
     async function fetchReadings() {
       if (!meterId) return
+      if (isDemoModeEnabled()) {
+        setChartData(data ?? mockData)
+        setLoading(false)
+        return
+      }
       setLoading(true)
       setError(null)
       try {
@@ -64,7 +70,7 @@ export default function ConsumptionChart({
     return () => {
       mounted = false
     }
-  }, [meterId])
+  }, [data, meterId])
 
   return (
     <div className="card">

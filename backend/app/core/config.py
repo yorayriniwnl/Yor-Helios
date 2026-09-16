@@ -2,6 +2,7 @@ from pathlib import Path
 import os
 import logging
 import sys
+from typing import List
 
 ROOT_DIR = Path(__file__).resolve().parents[3]
 
@@ -20,6 +21,11 @@ except ImportError:
     pass
 
 logger = logging.getLogger(__name__)
+
+_INSECURE_JWT_SECRETS = {
+    "dev_jwt_secret_change_me",
+    "local_dev_jwt_secret_change_me_use_env_in_production",
+}
 
 # ── Pydantic v1 / v2 compatibility ───────────────────────────────────────────
 try:
@@ -40,10 +46,11 @@ class Settings(BaseSettings):
     REDIS_URL: str = ""
     JWT_SECRET: str = ""
     API_V1_STR: str = "/api/v1"
-    CORS_ALLOWED_ORIGINS: list = [
+    CORS_ALLOWED_ORIGINS: List[str] = [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
     ]
+    TRUST_PROXY: bool = False
 
     if _PYDANTIC_V2:
         model_config = {"env_file_encoding": "utf-8", "case_sensitive": True}
@@ -137,10 +144,17 @@ def _validate_settings(s: Settings) -> None:
         elif db.startswith("sqlite"):
             errors.append("DATABASE_URL must not be sqlite in production")
         secret = s.JWT_SECRET or ""
-        if not secret or secret == "dev_jwt_secret_change_me":
+        if not secret or secret in _INSECURE_JWT_SECRETS:
             errors.append("JWT_SECRET must be a strong secret in production")
-        elif len(secret) < 16:
-            errors.append("JWT_SECRET should be at least 16 characters")
+        elif len(secret) < 32:
+            errors.append("JWT_SECRET should be at least 32 characters")
+        cors_origins = [str(origin).strip() for origin in (s.CORS_ALLOWED_ORIGINS or []) if str(origin).strip()]
+        if not cors_origins:
+            errors.append("CORS_ALLOWED_ORIGINS must contain at least one origin in production")
+        elif "*" in cors_origins:
+            errors.append("CORS_ALLOWED_ORIGINS must not contain '*' in production")
+        if not (s.REDIS_URL or "").strip():
+            errors.append("REDIS_URL must be set in production for shared rate limits and cache state")
         if errors:
             _fail_startup("Invalid configuration:\n- " + "\n- ".join(errors))
 

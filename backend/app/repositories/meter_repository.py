@@ -8,15 +8,30 @@ except Exception:
     from ..models.meter import Meter
 
 
-def create_meter(db: Session, meter_number: str, household_name: Optional[str] = None, status: str = "active") -> Meter:
+def create_meter(
+    db: Session,
+    meter_number: str,
+    household_name: Optional[str] = None,
+    status: str = "active",
+    zone_id: Optional[int] = None,
+    latitude: Optional[float] = None,
+    longitude: Optional[float] = None,
+) -> Meter:
     meter = Meter(
         meter_number=meter_number,
         household_name=household_name,
         status=status,
+        zone_id=zone_id,
+        latitude=latitude,
+        longitude=longitude,
     )
     db.add(meter)
-    db.commit()
-    db.refresh(meter)
+    try:
+        db.commit()
+        db.refresh(meter)
+    except Exception:
+        db.rollback()
+        raise
     return meter
 
 

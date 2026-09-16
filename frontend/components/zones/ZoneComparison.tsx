@@ -6,6 +6,7 @@ import { get } from '../../lib/api'
 import Spinner from '../ui/Spinner'
 import EmptyState from '../ui/EmptyState'
 import ErrorMessage from '../ui/ErrorMessage'
+import { getDemoZones, isDemoModeEnabled } from '../../lib/demo'
 
 type ZoneOverview = {
   id: number
@@ -37,6 +38,20 @@ export default function ZoneComparison() {
       setError(null)
 
       try {
+        if (isDemoModeEnabled()) {
+          if (mounted) setZones(getDemoZones().map((zone) => ({
+            id: zone.id,
+            name: zone.name,
+            city: zone.city,
+            state: zone.state,
+            meter_count: zone.meter_count || 0,
+            alert_count: zone.alert_count || 0,
+            anomaly_count: zone.anomaly_count || 0,
+            anomaly_density: zone.anomaly_density || 0,
+            risk: zone.risk || 'low',
+          })))
+          return
+        }
         const res = await get<ZoneOverview[]>('/zones/overview')
         if (!mounted) return
 

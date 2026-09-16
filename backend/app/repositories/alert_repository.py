@@ -25,8 +25,12 @@ def create_alert(db: Session, meter_id: Optional[int], reading_id: Optional[int]
         severity=severity,
     )
     db.add(alert)
-    db.commit()
-    db.refresh(alert)
+    try:
+        db.commit()
+        db.refresh(alert)
+    except Exception:
+        db.rollback()
+        raise
     return alert
 
 
@@ -34,6 +38,35 @@ def count_alerts(db: Session) -> int:
     """Return total number of alerts."""
     try:
         return int(db.query(func.count(Alert.id)).scalar() or 0)
+    except Exception:
+        return 0
+
+
+def count_open_alerts(db: Session) -> int:
+    """Return alerts that still require operator attention."""
+    try:
+        return int(
+            db.query(func.count(Alert.id))
+            .filter(Alert.status.in_(("open", "assigned", "investigating")))
+            .scalar()
+            or 0
+        )
+    except Exception:
+        return 0
+
+
+def count_critical_alerts(db: Session) -> int:
+    """Return open critical alerts for the command-center KPI."""
+    try:
+        return int(
+            db.query(func.count(Alert.id))
+            .filter(
+                Alert.status.in_(("open", "assigned", "investigating")),
+                Alert.severity == "critical",
+            )
+            .scalar()
+            or 0
+        )
     except Exception:
         return 0
 
@@ -84,6 +117,7 @@ def assign_alert(db: Session, alert_id: int, user_id: int) -> Optional[Alert]:
         db.refresh(alert)
         return alert
     except Exception:
+        db.rollback()
         return None
 
 
@@ -100,6 +134,7 @@ def resolve_alert(db: Session, alert_id: int, notes: Optional[str]) -> Optional[
         db.refresh(alert)
         return alert
     except Exception:
+        db.rollback()
         return None
 
 
@@ -113,14 +148,27 @@ def set_alert_sla_breach(db: Session, alert_id: int, breached: bool = True) -> O
         db.refresh(alert)
         return alert
     except Exception:
+        db.rollback()
         return None
 
 
-def list_alerts(db: Session, skip: int = 0, limit: int = 100) -> List[Alert]:
+def list_alerts(
+    db: Session,
+    skip: int = 0,
+    limit: int = 100,
+    status: Optional[str] = None,
+    severity: Optional[str] = None,
+) -> List[Alert]:
     """Return recent alerts ordered by newest first."""
     try:
-        return db.query(Alert).order_by(Alert.created_at.desc()).offset(skip).limit(limit).all()
+        query = db.query(Alert)
+        if status:
+            query = query.filter(Alert.status == status)
+        if severity:
+            query = query.filter(Alert.severity == severity)
+        return query.order_by(Alert.created_at.desc()).offset(skip).limit(limit).all()
     except Exception:
+        db.rollback()
         return []
 
 
@@ -129,4 +177,5 @@ def get_alert_by_id(db: Session, alert_id: int) -> Optional[Alert]:
     try:
         return db.query(Alert).filter(Alert.id == alert_id).first()
     except Exception:
+        db.rollback()
         return None

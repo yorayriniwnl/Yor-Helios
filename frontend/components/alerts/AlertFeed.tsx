@@ -1,11 +1,12 @@
 "use client"
 
 import React, { useEffect, useState } from 'react'
-import { get } from '../../lib/api'
+import { downloadAuthenticatedFile, get } from '../../lib/api'
+import { isDemoModeEnabled } from '../../lib/demo'
 import Spinner from '../ui/Spinner'
 import ErrorMessage from '../ui/ErrorMessage'
 import EvidenceUploader from './EvidenceUploader'
-import connectWebSocket, { addWebSocketListener, removeWebSocketListener } from '../../lib/websocket'
+import connectWebSocket from '../../lib/websocket'
 
 type Severity = 'low' | 'medium' | 'high' | 'critical'
 
@@ -15,7 +16,7 @@ type AlertItem = {
   severity: Severity
   timestamp: string
   root_cause?: string
-  confidence?: number
+  signal_score?: number
   recommended_action?: string
   est_recovery_minutes?: number
   est_recovery_value_usd?: number
@@ -52,6 +53,13 @@ function mapSeverityFromScore(score?: number): Severity {
   return 'low'
 }
 
+function normalizeSeverity(severity?: string, score?: number): Severity {
+  if (severity === 'critical' || severity === 'high' || severity === 'medium' || severity === 'low') {
+    return severity
+  }
+  return mapSeverityFromScore(score)
+}
+
 function severityLabel(s: Severity) {
   switch (s) {
     case 'critical':
@@ -69,7 +77,7 @@ function severityLabel(s: Severity) {
 function formatAlertMessage(a: any) {
   const raw = (a.explanation || a.type || `Alert ${a.id}`) as string
   const txt = raw.toLowerCase()
-  const sev = mapSeverityFromScore(a.score)
+  const sev = normalizeSeverity(a.severity, a.score)
 
   if (txt.includes('tamper') || txt.includes('tampering')) return 'Likely theft — schedule inspection'
   if (txt.includes('spike') || txt.includes('voltage') || txt.includes('overvoltage')) return 'Transformer stress — inspect equipment'
@@ -80,40 +88,66 @@ function formatAlertMessage(a: any) {
 }
 
 export default function AlertFeed({ alerts }: { alerts?: AlertItem[] }) {
-  const [list, setList] = useState<AlertItem[]>(alerts ?? mockAlerts)
+  const [list, setList] = useState<AlertItem[]>(() => alerts ?? (isDemoModeEnabled() ? mockAlerts : []))
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [priorityView, setPriorityView] = useState(false)
   const [loadingPriority, setLoadingPriority] = useState(false)
   const [evidenceMap, setEvidenceMap] = useState<Record<number, any[]>>({})
   const [showEvidenceForm, setShowEvidenceForm] = useState<Record<number, boolean>>({})
+  const [downloadingEvidence, setDownloadingEvidence] = useState<number | null>(null)
+
+  async function downloadEvidence(item: any) {
+    if (!item?.file_url || !item?.id) return
+    setDownloadingEvidence(item.id)
+    try {
+      const blob = await downloadAuthenticatedFile(item.file_url)
+      const href = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = href
+      anchor.download = String(item.original_filename || `evidence-${item.id}`).split(/[\\/]/).pop() || `evidence-${item.id}`
+      document.body.appendChild(anchor)
+      anchor.click()
+      anchor.remove()
+      URL.revokeObjectURL(href)
+    } catch (err: any) {
+      setError(err?.message || 'Failed to download evidence')
+    } finally {
+      setDownloadingEvidence(null)
+    }
+  }
 
   useEffect(() => {
     let mounted = true
     async function fetchAlerts() {
       setLoading(true)
       setError(null)
+      if (isDemoModeEnabled()) {
+        setList(alerts ?? mockAlerts)
+        setLoading(false)
+        return
+      }
       try {
-        const res = await get<any[]>('/alerts', undefined, { cacheMs: 10000 })
+        const res = await get<any[]>('/alerts/', undefined, { cacheMs: 10000 })
         if (!mounted) return
         const mapped = (res || []).map((a) => {
           const ts = a.created_at || a.timestamp || new Date().toISOString()
-          const sev = mapSeverityFromScore(a.score)
+          const sev = normalizeSeverity(a.severity, a.score)
           const msg = formatAlertMessage(a)
           const root = a.decision?.root_cause || a.root_cause || null
-          const conf = a.confidence != null ? Number(a.confidence) : (a.decision && a.decision.confidence ? Number(a.decision.confidence) : undefined)
+          const signalScore = a.score != null ? Number(a.score) : (a.confidence != null ? Number(a.confidence) : undefined)
           const rec = a.decision?.recommended_action?.title || a.recommended_action || undefined
           const estMin = a.decision?.estimated_recovery_minutes || a.est_recovery_minutes || undefined
           const estVal = a.decision?.estimated_recovery_value_usd || a.est_recovery_value_usd || undefined
-          return { id: a.id, message: msg, severity: sev as Severity, timestamp: ts, root_cause: root, confidence: conf, recommended_action: rec, est_recovery_minutes: estMin, est_recovery_value_usd: estVal }
+          return { id: a.id, message: msg, severity: sev as Severity, timestamp: ts, root_cause: root, signal_score: signalScore, recommended_action: rec, est_recovery_minutes: estMin, est_recovery_value_usd: estVal }
         })
         // sort newest first
         mapped.sort((x, y) => new Date(y.timestamp).getTime() - new Date(x.timestamp).getTime())
-        setList(mapped.length ? mapped : mockAlerts)
+        setList(mapped.length ? mapped : (isDemoModeEnabled() ? mockAlerts : []))
       } catch (err: any) {
         if (!mounted) return
         setError(err?.response?.data?.detail || err?.message || 'Failed to load alerts')
-        setList(alerts ?? mockAlerts)
+        setList(alerts ?? (isDemoModeEnabled() ? mockAlerts : []))
       } finally {
         if (mounted) setLoading(false)
       }
@@ -127,7 +161,7 @@ export default function AlertFeed({ alerts }: { alerts?: AlertItem[] }) {
         if (!mounted) return
         const mapped = (res || []).map((a) => {
           const ts = a.created_at || new Date().toISOString()
-          const sev = mapSeverityFromScore(a.score)
+          const sev = normalizeSeverity(a.severity, a.score)
           const msg = formatAlertMessage(a)
           return {
             id: a.id,
@@ -139,7 +173,7 @@ export default function AlertFeed({ alerts }: { alerts?: AlertItem[] }) {
           }
         })
         mapped.sort((x, y) => new Date(y.timestamp).getTime() - new Date(x.timestamp).getTime())
-        setList(mapped.length ? mapped : mockAlerts)
+        setList(mapped.length ? mapped : (isDemoModeEnabled() ? mockAlerts : []))
       } catch (err: any) {
         if (!mounted) return
         setError(err?.response?.data?.detail || err?.message || 'Failed to load priority alerts')
@@ -149,10 +183,12 @@ export default function AlertFeed({ alerts }: { alerts?: AlertItem[] }) {
     }
 
     fetchAlerts()
-    try {
-      connectWebSocket()
-    } catch (e) {
-      // ignore
+    if (!isDemoModeEnabled()) {
+      try {
+        connectWebSocket()
+      } catch (e) {
+        // ignore
+      }
     }
     return () => {
       mounted = false
@@ -161,7 +197,6 @@ export default function AlertFeed({ alerts }: { alerts?: AlertItem[] }) {
 
   return (
     <div className="card">
-      <h3 className="text-lg font-medium mb-3">Action Queue</h3>
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-lg font-medium">Action Queue</h3>
               <div className="flex items-center gap-2">
@@ -170,13 +205,17 @@ export default function AlertFeed({ alerts }: { alerts?: AlertItem[] }) {
                     // toggle priority view and fetch prioritized alerts when enabling
                     const next = !priorityView
                     setPriorityView(next)
+                    if (isDemoModeEnabled()) {
+                      setList(alerts ?? mockAlerts)
+                      return
+                    }
                     if (next) {
                       setLoadingPriority(true)
                       get<any[]>('/alerts/priority', undefined, { cacheMs: 10000 })
                         .then((res) => {
                           const mapped = (res || []).map((a) => {
                             const ts = a.created_at || new Date().toISOString()
-                            const sev = mapSeverityFromScore(a.score)
+                            const sev = normalizeSeverity(a.severity, a.score)
                             const msg = formatAlertMessage(a)
                             return {
                               id: a.id,
@@ -188,28 +227,28 @@ export default function AlertFeed({ alerts }: { alerts?: AlertItem[] }) {
                             }
                           })
                           mapped.sort((x, y) => new Date(y.timestamp).getTime() - new Date(x.timestamp).getTime())
-                          setList(mapped.length ? mapped : mockAlerts)
+                          setList(mapped.length ? mapped : (isDemoModeEnabled() ? mockAlerts : []))
                         })
                         .catch((err) => setError(err?.message || 'Failed to load priority alerts'))
                         .finally(() => setLoadingPriority(false))
                     } else {
                       // refresh normal alerts
                       setLoading(true)
-                      get<any[]>('/alerts', undefined, { cacheMs: 10000 })
+                      get<any[]>('/alerts/', undefined, { cacheMs: 10000 })
                         .then((res) => {
                           const mapped = (res || []).map((a) => {
                             const ts = a.created_at || a.timestamp || new Date().toISOString()
-                            const sev = mapSeverityFromScore(a.score)
+                            const sev = normalizeSeverity(a.severity, a.score)
                             const msg = formatAlertMessage(a)
                             const root = a.decision?.root_cause || a.root_cause || null
-                            const conf = a.confidence != null ? Number(a.confidence) : (a.decision && a.decision.confidence ? Number(a.decision.confidence) : undefined)
+                            const signalScore = a.score != null ? Number(a.score) : (a.confidence != null ? Number(a.confidence) : undefined)
                             const rec = a.decision?.recommended_action?.title || a.recommended_action || undefined
                             const estMin = a.decision?.estimated_recovery_minutes || a.est_recovery_minutes || undefined
                             const estVal = a.decision?.estimated_recovery_value_usd || a.est_recovery_value_usd || undefined
-                            return { id: a.id, message: msg, severity: sev as Severity, timestamp: ts, root_cause: root, confidence: conf, recommended_action: rec, est_recovery_minutes: estMin, est_recovery_value_usd: estVal }
+                            return { id: a.id, message: msg, severity: sev as Severity, timestamp: ts, root_cause: root, signal_score: signalScore, recommended_action: rec, est_recovery_minutes: estMin, est_recovery_value_usd: estVal }
                           })
                           mapped.sort((x, y) => new Date(y.timestamp).getTime() - new Date(x.timestamp).getTime())
-                          setList(mapped.length ? mapped : mockAlerts)
+                          setList(mapped.length ? mapped : (isDemoModeEnabled() ? mockAlerts : []))
                         })
                         .catch((err) => setError(err?.message || 'Failed to load alerts'))
                         .finally(() => setLoading(false))
@@ -237,7 +276,7 @@ export default function AlertFeed({ alerts }: { alerts?: AlertItem[] }) {
                 <div className="text-xs text-[var(--muted)] mt-1">
                   {new Date(a.timestamp).toLocaleString()}
                   {a.root_cause ? <span className="ml-2">• Root cause: {a.root_cause}</span> : null}
-                  {a.confidence != null ? <span className="ml-2">• Conf: {Math.round(a.confidence * 100)}%</span> : null}
+                  {a.signal_score != null ? <span className="ml-2">• Score: {Math.round(a.signal_score * 100)}/100</span> : null}
                 </div>
                   {a.priority_score != null && a.components ? (
                     <div className="mt-2 text-xs text-[var(--muted)] flex items-center gap-3">
@@ -279,7 +318,14 @@ export default function AlertFeed({ alerts }: { alerts?: AlertItem[] }) {
                       {(evidenceMap[a.id] || []).map((ev: any) => (
                         <div key={ev.id} className="text-xs text-[var(--muted)] mt-1">
                           {ev.before_after ? <strong className="mr-2">[{ev.before_after}]</strong> : null}
-                          <a href={ev.file_url} target="_blank" rel="noreferrer" className="underline">{ev.original_filename || `evidence-${ev.id}`}</a>
+                          <button
+                            type="button"
+                            onClick={() => downloadEvidence(ev)}
+                            disabled={downloadingEvidence === ev.id}
+                            className="underline disabled:opacity-50"
+                          >
+                            {downloadingEvidence === ev.id ? 'Downloading…' : (ev.original_filename || `evidence-${ev.id}`)}
+                          </button>
                           {ev.notes ? <span className="ml-2">• {ev.notes}</span> : null}
                         </div>
                       ))}

@@ -23,6 +23,7 @@ import time
 import json
 import uuid
 import datetime
+import re
 from typing import Optional, Callable
 
 try:
@@ -116,6 +117,26 @@ class MaxLevelFilter(logging.Filter):
         return record.levelno <= self.max_level
 
 
+class SensitiveAccessLogFilter(logging.Filter):
+    """Redact bearer-like query parameters before Uvicorn access logging.
+
+    The browser uses a WebSocket subprotocol for new connections, but this
+    also protects compatibility clients that still send ``?token=...`` and
+    prevents credentials from being persisted in ordinary request logs.
+    """
+
+    _sensitive_query = re.compile(r"([?&](?:token|access_token|authorization)=)[^&\s\"]+", re.IGNORECASE)
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if record.name.startswith("uvicorn"):
+            rendered = record.getMessage()
+            redacted = self._sensitive_query.sub(r"\1[REDACTED]", rendered)
+            if redacted != rendered:
+                record.msg = redacted
+                record.args = ()
+        return True
+
+
 def configure_logging(level: Optional[str] = None) -> None:
     """Configure structured JSON logging for the application.
 
@@ -136,11 +157,13 @@ def configure_logging(level: Optional[str] = None) -> None:
     out_handler = logging.StreamHandler(sys.stdout)
     out_handler.setLevel(logging.INFO)
     out_handler.addFilter(MaxLevelFilter(logging.WARNING))
+    out_handler.addFilter(SensitiveAccessLogFilter())
     out_handler.setFormatter(JSONFormatter())
 
     # Stderr handler for errors and critical logs
     err_handler = logging.StreamHandler(sys.stderr)
     err_handler.setLevel(logging.ERROR)
+    err_handler.addFilter(SensitiveAccessLogFilter())
     err_handler.setFormatter(JSONFormatter())
 
     root.addHandler(out_handler)
@@ -150,6 +173,7 @@ def configure_logging(level: Optional[str] = None) -> None:
     for name in ("uvicorn.error", "uvicorn.access", "uvicorn"):
         logger = logging.getLogger(name)
         logger.handlers = root.handlers
+        logger.propagate = False
         logger.setLevel(numeric_level)
 
 

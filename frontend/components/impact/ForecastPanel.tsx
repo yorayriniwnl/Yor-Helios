@@ -2,12 +2,12 @@
 
 import React, { useEffect, useState } from 'react'
 import { get } from '../../lib/api'
-import { isDemoModeEnabled } from '../../lib/demo'
+import { getDemoAlerts, isDemoModeEnabled } from '../../lib/demo'
 import Spinner from '../ui/Spinner'
 import ErrorMessage from '../ui/ErrorMessage'
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts'
 
-type Point = { time: string; prob: number }
+type Point = { time: string; score: number }
 
 export default function ForecastPanel() {
   const [loading, setLoading] = useState(true)
@@ -20,8 +20,7 @@ export default function ForecastPanel() {
       setLoading(true)
       setError(null)
       try {
-        // fetch recent alerts (demo mode will return seeded alerts)
-        const res = await get<any[]>('/alerts?limit=1000')
+        const res = isDemoModeEnabled() ? getDemoAlerts() : await get<any[]>('/alerts/', { params: { limit: 200 } })
         if (!mounted) return
 
         const now = Date.now()
@@ -54,7 +53,7 @@ export default function ForecastPanel() {
           intercept = (sumY - slope * sumX) / N
         }
 
-        // compute baseline for probability normalization (mean + 2*std)
+        // Compute a bounded anomaly-score normalization (mean + 2*std).
         const mean = N > 0 ? sumY / N : 0
         const variance = N > 0 ? ys.reduce((s, y) => s + Math.pow(y - mean, 2), 0) / N : 0
         const std = Math.sqrt(Math.max(0, variance))
@@ -66,10 +65,10 @@ export default function ForecastPanel() {
           const x = N + j
           let ypred = intercept + slope * x
           if (ypred < 0) ypred = 0
-          const prob = Math.min(0.99, ypred / baseline)
+          const score = Math.min(0.99, ypred / baseline)
           const ts = new Date(now + (j + 1) * msHour)
           const label = ts.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
-          preds.push({ time: label, prob: Math.round(prob * 100) })
+          preds.push({ time: label, score: Math.round(score * 100) })
         }
 
         setData(preds)
@@ -88,7 +87,7 @@ export default function ForecastPanel() {
   if (loading) return <div className="card"><div className="py-6 flex justify-center"><Spinner /></div></div>
   if (error) return <div className="card"><ErrorMessage message={error} /></div>
 
-  const peak = data.reduce((acc, p) => (p.prob > acc.prob ? p : acc), { time: '', prob: 0 })
+  const peak = data.reduce((acc, p) => (p.score > acc.score ? p : acc), { time: '', score: 0 })
   const formatPercentTick = (value: number | string) => `${value}%`
   const formatPercentTooltip = (value: number | string | ReadonlyArray<number | string> | undefined) => {
     const raw = Array.isArray(value) ? value[0] : value
@@ -97,8 +96,8 @@ export default function ForecastPanel() {
 
   return (
     <div className="card">
-      <h3 className="font-medium mb-2">24h Anomaly Probability Forecast</h3>
-      <p className="text-sm text-[var(--muted)] mb-3">A lightweight projection for demo purposes (basic regression on recent alerts).</p>
+      <h3 className="font-medium mb-2">24h Anomaly Score Outlook</h3>
+      <p className="text-sm text-[var(--muted)] mb-3">A lightweight demo projection from recent alert counts; it is not a calibrated probability.</p>
 
       <div style={{ width: '100%', height: 200 }}>
         <ResponsiveContainer width="100%" height="100%" minWidth={0} initialDimension={{ width: 1, height: 1 }}>
@@ -107,12 +106,12 @@ export default function ForecastPanel() {
             <XAxis dataKey="time" tick={{ fontSize: 11 }} interval={3} />
             <YAxis domain={[0, 100]} tickFormatter={formatPercentTick} />
             <Tooltip formatter={formatPercentTooltip} />
-            <Line type="monotone" dataKey="prob" stroke="#ff8a7f" strokeWidth={2} dot={false} />
+            <Line type="monotone" dataKey="score" stroke="#ff8a7f" strokeWidth={2} dot={false} />
           </LineChart>
         </ResponsiveContainer>
       </div>
 
-      <div className="mt-3 text-sm text-[var(--muted)]">Peak predicted probability: <span className="font-semibold">{peak.prob}%</span> at <span className="font-semibold">{peak.time}</span></div>
+      <div className="mt-3 text-sm text-[var(--muted)]">Peak projected score: <span className="font-semibold">{peak.score}/100</span> at <span className="font-semibold">{peak.time}</span></div>
     </div>
   )
 }

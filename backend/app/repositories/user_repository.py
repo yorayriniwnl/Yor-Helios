@@ -17,8 +17,12 @@ def create_user(db: Session, name: str, email: str, password_hash: str, is_activ
         role_id=role_id,
     )
     db.add(user)
-    db.commit()
-    db.refresh(user)
+    try:
+        db.commit()
+        db.refresh(user)
+    except Exception:
+        db.rollback()
+        raise
     return user
 
 

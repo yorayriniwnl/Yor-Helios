@@ -9,7 +9,7 @@ import { BoltIcon } from '../../lib/navigation'
 const TRUST_POINTS = [
   'Jump from alert severity to meter-level evidence in one workspace.',
   'Review zone risk, analytics, and field readiness without changing tools.',
-  'Use demo credentials for fast local testing before backend auth is wired.',
+  'Use the local walkthrough when you need to verify the interface without operational telemetry.',
 ] as const
 
 export default function LoginPage() {
@@ -21,13 +21,18 @@ export default function LoginPage() {
   const login  = useAuthStore((s) => s.login)
   const router = useRouter()
 
+  function safeNextPath() {
+    const requested = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('next') : null
+    return requested && requested.startsWith('/') && !requested.startsWith('//') ? requested : '/dashboard'
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
     setLoading(true)
     try {
       await login(email.trim(), password)
-      router.push('/dashboard')
+      router.push(safeNextPath())
     } catch (err: any) {
       setError(err?.message ?? 'Login failed. Check your credentials.')
     } finally {
@@ -81,7 +86,7 @@ export default function LoginPage() {
                 onClick={() => {
                   if (typeof window !== 'undefined') {
                     localStorage.setItem('helios.demo', '1')
-                    router.push('/dashboard')
+                    router.push(safeNextPath())
                   }
                 }}
                 className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-[var(--fg)] transition-colors hover:bg-white/10"
@@ -150,6 +155,8 @@ export default function LoginPage() {
                   type="password"
                   autoComplete="current-password"
                   required
+                  minLength={8}
+                  maxLength={128}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter your password"
@@ -176,7 +183,7 @@ export default function LoginPage() {
             </form>
 
             <p className="text-center text-xs leading-6 text-[var(--muted)]">
-              Need a fast local check? Use the demo credentials above or enter demo mode for a backend-free walkthrough.
+              Need a fast local check? Enter demo mode for a backend-free walkthrough; it is clearly synthetic and never represents live telemetry.
             </p>
           </div>
         </div>

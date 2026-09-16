@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import { get } from '../../lib/api'
 import { addWebSocketListener, connectWebSocket } from '../../lib/websocket'
-import { isDemoModeEnabled } from '../../lib/demo'
+import { getDemoAlerts, isDemoModeEnabled } from '../../lib/demo'
 import Spinner from '../ui/Spinner'
 import ErrorMessage from '../ui/ErrorMessage'
 
@@ -12,7 +12,7 @@ function capitalize(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1)
 }
 
-function mapConfidence(score?: number) {
+function mapSignalScore(score?: number) {
   const sc = typeof score === 'number' ? Math.round(score * 100) : 65
   let level = 'Moderate'
   if (sc >= 85) level = 'High'
@@ -23,7 +23,7 @@ function mapConfidence(score?: number) {
 
 function explain(alert: any) {
   const raw = (alert?.explanation || alert?.message || '').toString().toLowerCase()
-  const { pct } = mapConfidence(alert?.score)
+  const { pct } = mapSignalScore(alert?.score)
 
   // Reasoning
   if (raw.includes('tamper') || raw.includes('tampering')) {
@@ -77,7 +77,11 @@ function ExplanationPanel() {
       setLoading(true)
       setError(null)
       try {
-        const res = await get<any[]>('/alerts', undefined, { cacheMs: 10000 })
+        if (isDemoModeEnabled()) {
+          if (mounted) setAlert(getDemoAlerts()[0])
+          return
+        }
+        const res = await get<any[]>('/alerts/', undefined, { cacheMs: 10000 })
         if (!mounted) return
         const first = (res && res.length) ? res[0] : null
         setAlert(first)
@@ -98,12 +102,17 @@ function ExplanationPanel() {
         }
       } catch (e) {}
     })
-    try { connectWebSocket() } catch (e) {}
-    return () => { mounted = false }
+    if (!isDemoModeEnabled()) {
+      try { connectWebSocket() } catch (e) {}
+    }
+    return () => {
+      mounted = false
+      remove()
+    }
   }, [])
 
   const ex = useMemo(() => explain(alert || {}), [alert])
-  const conf = useMemo(() => mapConfidence(alert?.score), [alert?.score])
+  const conf = useMemo(() => mapSignalScore(alert?.score), [alert?.score])
   const barColor = conf.pct >= 85 ? 'bg-red-500' : conf.pct >= 60 ? 'bg-yellow-400' : 'bg-green-400'
 
   if (loading) return <div className="card"><div className="py-6 flex justify-center"><Spinner /></div></div>
@@ -112,7 +121,7 @@ function ExplanationPanel() {
   return (
     <div className="card">
       <h3 className="font-medium mb-2">Insight & Next Steps</h3>
-      <div className="text-sm text-[var(--muted)]">Clear reason, confidence and recommended actions for the latest detected event.</div>
+      <div className="text-sm text-[var(--muted)]">Clear reason, normalized anomaly score, and recommended actions for the latest detected event.</div>
 
       <div className="mt-3">
         <div className="text-sm font-semibold">Reason</div>
@@ -122,8 +131,8 @@ function ExplanationPanel() {
       <div className="mt-3">
         <div className="flex items-center justify-between">
           <div>
-            <div className="text-sm font-semibold">Confidence</div>
-            <div className="text-sm text-[var(--muted)] mt-1">{conf.level} ({conf.pct}%)</div>
+            <div className="text-sm font-semibold">Signal band</div>
+            <div className="text-sm text-[var(--muted)] mt-1">{conf.level} · normalized score {conf.pct}/100</div>
           </div>
           <div className="w-40 ml-4">
             <div className="h-3 bg-white/6 rounded overflow-hidden">
@@ -138,7 +147,7 @@ function ExplanationPanel() {
         <div className="text-sm mt-1">{capitalize(ex.action)}</div>
       </div>
 
-      <div className="mt-3 text-xs text-[var(--muted)]">Note: This explanation is a concise, human-readable summary generated for operator guidance.</div>
+      <div className="mt-3 text-xs text-[var(--muted)]">Note: This is deterministic operator guidance. The score is not a calibrated probability.</div>
     </div>
   )
 }

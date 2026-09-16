@@ -40,6 +40,7 @@ def create_reading(
     voltage: Optional[float] = None,
     current: Optional[float] = None,
     power_consumption: Optional[float] = None,
+    ingest_key: Optional[str] = None,
 ):
     # fetch previous reading (if any) to improve anomaly detection
     previous = repo_get_latest_reading(db, meter_id)
@@ -51,6 +52,7 @@ def create_reading(
         voltage=voltage,
         current=current,
         power_consumption=power_consumption,
+        ingest_key=ingest_key,
     )
 
     # run anomaly detection and create alerts for any findings

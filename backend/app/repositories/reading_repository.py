@@ -16,6 +16,7 @@ def create_reading(
     voltage: Optional[float] = None,
     current: Optional[float] = None,
     power_consumption: Optional[float] = None,
+    ingest_key: Optional[str] = None,
 ) -> Reading:
     """Create and return a new Reading record."""
     reading = Reading(
@@ -24,11 +25,20 @@ def create_reading(
         voltage=voltage,
         current=current,
         power_consumption=power_consumption,
+        ingest_key=ingest_key,
     )
     db.add(reading)
-    db.commit()
-    db.refresh(reading)
+    try:
+        db.commit()
+        db.refresh(reading)
+    except Exception:
+        db.rollback()
+        raise
     return reading
+
+
+def get_reading_by_ingest_key(db: Session, ingest_key: str) -> Optional[Reading]:
+    return db.query(Reading).filter(Reading.ingest_key == ingest_key).first()
 
 
 def get_readings_by_meter(db: Session, meter_id: int, skip: int = 0, limit: int = 100) -> List[Reading]:

@@ -76,7 +76,7 @@ def create_alert(db: Session, meter_id: Optional[int], reading_id: Optional[int]
     return alert
 
 
-def assign_alert(db: Session, alert_id: int, user_id: int):
+def assign_alert(db: Session, alert_id: int, user_id: int, actor_user_id: Optional[int] = None):
     """Assign an alert to a user (delegates to repository)."""
     try:
         alert = repo_assign_alert(db, alert_id=alert_id, user_id=user_id)
@@ -85,7 +85,14 @@ def assign_alert(db: Session, alert_id: int, user_id: int):
 
     # Audit log: alert assigned
     try:
-        svc_log_action(db, user_id, "alert_assigned", entity="alert")
+        svc_log_action(
+            db,
+            actor_user_id if actor_user_id is not None else user_id,
+            "alert_assigned",
+            entity="alert",
+            entity_id=alert_id,
+            metadata={"assigned_to": user_id},
+        )
     except Exception:
         pass
 
@@ -117,7 +124,7 @@ def assign_alert(db: Session, alert_id: int, user_id: int):
     return alert
 
 
-def resolve_alert(db: Session, alert_id: int, notes: Optional[str]):
+def resolve_alert(db: Session, alert_id: int, notes: Optional[str], actor_user_id: Optional[int] = None):
     """Resolve an alert with optional resolution notes (delegates to repository)."""
     try:
         alert = repo_resolve_alert(db, alert_id=alert_id, notes=notes)
@@ -126,8 +133,8 @@ def resolve_alert(db: Session, alert_id: int, notes: Optional[str]):
 
     # Audit log: alert resolved (use assigned_to if available)
     try:
-        user_id = getattr(alert, "assigned_to", None)
-        svc_log_action(db, user_id, "alert_resolved", entity="alert")
+        user_id = actor_user_id if actor_user_id is not None else getattr(alert, "assigned_to", None)
+        svc_log_action(db, user_id, "alert_resolved", entity="alert", entity_id=alert_id)
     except Exception:
         pass
 

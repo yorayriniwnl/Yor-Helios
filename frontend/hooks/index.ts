@@ -11,6 +11,9 @@ export type { UseDashboardOptions, UseDashboardResult } from './useDashboard'
 export { useAlerts }           from './useAlerts'
 export type { AlertFilters, UseAlertsResult } from './useAlerts'
 
+export { useAlertInvestigation } from './useAlertInvestigation'
+export type { UseAlertInvestigationResult } from './useAlertInvestigation'
+
 export { useMeters }           from './useMeters'
 export type { UseMetersOptions, UseMetersResult } from './useMeters'
 

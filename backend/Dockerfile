@@ -10,30 +10,30 @@ ENV PYTHONUNBUFFERED=1
 ARG ENV=production
 ENV ENV=${ENV}
 ENV HELIOS_ENV=${ENV}
-ENV LOG_LEVEL=INFO
+ENV LOG_LEVEL=info
 ENV PORT=8000
 
 WORKDIR /app
 
-# Copy only requirements first to leverage Docker cache
-COPY backend/requirements.txt ./
+# Copy only requirements first to leverage Docker cache. Keep the repository
+# package layout in the image so `backend.app.*` absolute imports resolve the
+# same way they do in local and CI runs.
+COPY backend/requirements.txt ./backend/requirements.txt
 
 # Install dependencies
 RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir -r requirements.txt
+    && pip install --no-cache-dir -r backend/requirements.txt
 
 # Copy application code
-COPY backend/ .
+COPY backend/ ./backend/
 
-# ml-engine lives outside backend/ in the repo (sibling directory). It is
-# copied to /ml-engine so it sits alongside /app, matching the
-# parents[3]-based path resolution anomaly_service.py already uses to find it
-# when running outside Docker. Its dependencies (numpy/pandas/scikit-learn/
-# joblib) are already installed above via backend/requirements.txt.
-COPY ml-engine/ /ml-engine
+# ml-engine lives beside backend/ in the repository. Keep it beside the
+# package in the image so the same parents[3]-based path resolution works in
+# local, CI, and container execution.
+COPY ml-engine/ ./ml-engine/
 
 # Expose the app port (expand at build time)
 EXPOSE ${PORT}
 
 # Run the FastAPI app with Uvicorn. Use shell form so env vars are expanded.
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT} --log-level ${LOG_LEVEL}"]
+CMD ["sh", "-c", "python -m alembic -c backend/alembic.ini upgrade head && uvicorn backend.app.main:app --host 0.0.0.0 --port ${PORT} --log-level ${LOG_LEVEL}"]

@@ -1,105 +1,59 @@
 "use client"
 
-import React, { useRef, useMemo } from 'react'
-import { Canvas, useFrame } from '@react-three/fiber'
-import * as THREE from 'three'
-import { OrbitControls } from '@react-three/drei'
+const NODES = [
+  { x: 80, y: 168, r: 5, color: '#e84b4b' },
+  { x: 145, y: 82, r: 4, color: '#ff8a7f' },
+  { x: 232, y: 126, r: 7, color: '#671515' },
+  { x: 318, y: 66, r: 4, color: '#ff8a7f' },
+  { x: 405, y: 150, r: 6, color: '#e84b4b' },
+  { x: 492, y: 92, r: 4, color: '#671515' },
+  { x: 575, y: 182, r: 7, color: '#ff8a7f' },
+  { x: 646, y: 106, r: 4, color: '#e84b4b' },
+  { x: 260, y: 246, r: 4, color: '#ff8a7f' },
+  { x: 480, y: 248, r: 5, color: '#e84b4b' },
+] as const
 
-function FloatingNodes({ count = 8 }: { count?: number }) {
-  const nodes = useMemo(() => {
-    const out: { base: THREE.Vector3; seed: number; color: string }[] = []
-    for (let i = 0; i < count; i++) {
-      const angle = (i / count) * Math.PI * 2
-      const radius = 1.6 + ((i * 17) % 10) / 10
-      const x = Math.cos(angle) * radius
-      const y = ((((i * 13) % 10) / 10) - 0.5) * 0.6
-      const z = Math.sin(angle) * radius
-      out.push({ base: new THREE.Vector3(x, y, z), seed: i * 1.618, color: ['#e84b4b', '#ff8a7f', '#671515'][i % 3] })
-    }
-    return out
-  }, [count])
-
-  const meshRefs = useRef<Array<THREE.Mesh | null>>([])
-  const lineRefs = useRef<Array<THREE.LineSegments | null>>([])
-
-  const pairs = useMemo(() => {
-    const p: [number, number][] = []
-    for (let i = 0; i < count; i++) {
-      p.push([i, (i + 1) % count])
-      if (i % 2 === 0) p.push([i, (i + 2) % count])
-    }
-    return p
-  }, [count])
-
-  useFrame((state) => {
-    const t = state.clock.getElapsedTime()
-    for (let i = 0; i < nodes.length; i++) {
-      const m = meshRefs.current[i]
-      if (!m) continue
-      const seed = nodes[i].seed
-      const amp = 0.25
-      const speed = 0.6
-      const nx = nodes[i].base.x + Math.sin(t * speed + seed) * amp
-      const ny = nodes[i].base.y + Math.cos(t * speed * 1.2 + seed * 0.7) * amp * 0.7
-      const nz = nodes[i].base.z + Math.cos(t * speed * 0.9 + seed * 1.3) * amp * 0.4
-      m.position.set(nx, ny, nz)
-      const s = 0.9 + Math.sin(t * 3 + seed) * 0.15
-      m.scale.set(s, s, s)
-      m.rotation.y += 0.01
-    }
-
-    for (let k = 0; k < pairs.length; k++) {
-      const l = lineRefs.current[k]
-      if (!l) continue
-      const [i, j] = pairs[k]
-      const p1 = meshRefs.current[i]?.position
-      const p2 = meshRefs.current[j]?.position
-      if (!p1 || !p2) continue
-      const pts = [new THREE.Vector3().copy(p1), new THREE.Vector3().copy(p2)]
-      l.geometry.setFromPoints(pts)
-      if ((l.geometry.attributes as any).position) (l.geometry.attributes as any).position.needsUpdate = true
-    }
-  })
-
-  return (
-      <group>
-      {nodes.map((n, i) => (
-        <mesh
-          key={i}
-          ref={(el) => {
-            meshRefs.current[i] = el
-          }}
-          position={n.base}
-        >
-          <sphereGeometry args={[0.08, 12, 12]} />
-          <meshStandardMaterial color={n.color} emissive={n.color} emissiveIntensity={0.9} metalness={0.2} roughness={0.25} />
-        </mesh>
-      ))}
-
-      {pairs.map((pr, k) => (
-        <lineSegments
-          key={k}
-          ref={(el) => {
-            lineRefs.current[k] = el
-          }}
-        >
-          <bufferGeometry />
-          <lineBasicMaterial color="#ff8a7f" transparent opacity={0.52} />
-        </lineSegments>
-      ))}
-    </group>
-  )
-}
+const LINKS = [
+  [0, 1], [0, 2], [1, 2], [1, 3], [2, 3], [2, 4], [2, 8], [3, 4],
+  [3, 5], [4, 5], [4, 6], [4, 9], [5, 6], [5, 7], [6, 7], [8, 9],
+] as const
 
 export default function ThreeHero() {
   return (
-    <div style={{ width: '100%', height: 360, borderRadius: 12, overflow: 'hidden' }}>
-      <Canvas camera={{ position: [0, 0, 6], fov: 45 }} dpr={[1, 1.5]} gl={{ antialias: true, alpha: true }}>
-        <ambientLight intensity={0.4} />
-        <directionalLight position={[5, 5, 5]} intensity={0.6} />
-        <FloatingNodes count={10} />
-        <OrbitControls enableZoom={false} enablePan={false} enableRotate={false} autoRotate autoRotateSpeed={0.18} />
-      </Canvas>
+    <div className="helios-network-visual" role="img" aria-label="Helios network of connected solar meter signals">
+      <svg viewBox="0 0 720 330" className="h-full w-full" aria-hidden="true" preserveAspectRatio="xMidYMid meet">
+        <defs>
+          <linearGradient id="helios-network-bg" x1="0" x2="1" y1="0" y2="1">
+            <stop offset="0%" stopColor="#160808" />
+            <stop offset="52%" stopColor="#050505" />
+            <stop offset="100%" stopColor="#1b0909" />
+          </linearGradient>
+          <radialGradient id="helios-network-core" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#ff8a7f" stopOpacity=".24" />
+            <stop offset="100%" stopColor="#ff8a7f" stopOpacity="0" />
+          </radialGradient>
+        </defs>
+        <rect width="720" height="330" rx="18" fill="url(#helios-network-bg)" />
+        <circle cx="360" cy="164" r="132" fill="url(#helios-network-core)" className="helios-network-pulse" />
+        <g stroke="#ff8a7f" strokeOpacity=".3" strokeWidth="1.2">
+          {LINKS.map(([from, to]) => (
+            <line key={`${from}-${to}`} x1={NODES[from].x} y1={NODES[from].y} x2={NODES[to].x} y2={NODES[to].y} />
+          ))}
+        </g>
+        <g>
+          {NODES.map((node, index) => (
+            <g key={`${node.x}-${node.y}`}>
+              <circle cx={node.x} cy={node.y} r={node.r * 3.5} fill={node.color} opacity=".1" />
+              <circle cx={node.x} cy={node.y} r={node.r} fill={node.color} className={index % 3 === 0 ? 'helios-network-pulse' : undefined} />
+            </g>
+          ))}
+        </g>
+        <g fill="#fff" fillOpacity=".6" fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace" fontSize="10">
+          <text x="28" y="30">SIGNAL NETWORK / LIVE MODEL</text>
+          <text x="28" y="306">HELIOS / GRID INTELLIGENCE</text>
+          <text x="584" y="306">10 NODES · 16 LINKS</text>
+        </g>
+      </svg>
     </div>
   )
 }

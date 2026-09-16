@@ -9,6 +9,7 @@ export interface OfflineAction {
 }
 
 const QUEUE_KEY = 'helios.offline.queue'
+const MAX_QUEUE_LENGTH = 500
 const listeners = new Set<(length: number) => void>()
 
 function notify(): void {
@@ -39,8 +40,10 @@ export function getQueueLength(): number {
 export function queueAction(action: Omit<OfflineAction, 'id' | 'ts'> & Partial<Pick<OfflineAction, 'id' | 'ts'>>): void {
   try {
     const queue = getQueue()
-    queue.push({ ...action, id: action.id || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, ts: action.ts || new Date().toISOString() })
-    window.localStorage.setItem(QUEUE_KEY, JSON.stringify(queue))
+    const id = action.id || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    if (queue.some((item) => item.id === id)) return
+    queue.push({ ...action, id, ts: action.ts || new Date().toISOString() })
+    window.localStorage.setItem(QUEUE_KEY, JSON.stringify(queue.slice(-MAX_QUEUE_LENGTH)))
     notify()
   } catch {
     // Offline support is best-effort; the primary request path remains intact.
@@ -61,6 +64,7 @@ export async function processQueue(): Promise<void> {
   if (!isOnline()) return
   const queue = getQueue()
   if (!queue.length) return
+  const batch = queue.slice(0, 100)
 
   const headers: Record<string, string> = { Accept: 'application/json', 'Content-Type': 'application/json' }
   const token = getAuthToken()
@@ -69,7 +73,7 @@ export async function processQueue(): Promise<void> {
     method: 'POST',
     headers,
     credentials: 'include',
-    body: JSON.stringify({ actions: queue }),
+    body: JSON.stringify({ actions: batch }),
   })
   if (!response.ok) throw new Error(`Offline sync failed (${response.status})`)
 

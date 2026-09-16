@@ -36,6 +36,7 @@ export default function MetersPage() {
         <div className="flex items-center gap-2 flex-wrap">
           {/* Zone filter */}
           <select
+            aria-label="Filter meters by zone"
             value={selectedZone ?? ''}
             onChange={(e) => setSelectedZone(e.target.value ? Number(e.target.value) : null)}
             className="text-sm rounded-lg px-3 py-1.5 focus:outline-none"
@@ -53,6 +54,7 @@ export default function MetersPage() {
 
           {/* Search */}
           <input
+            aria-label="Search meters"
             type="search"
             placeholder="Search meters…"
             value={search}
@@ -66,6 +68,7 @@ export default function MetersPage() {
           />
 
           <button
+            aria-label="Refresh meters"
             onClick={refetch}
             className="px-3 py-1.5 rounded-lg text-sm transition-colors hover:bg-white/5"
             style={{ color: 'var(--muted)', border: '1px solid rgba(255,255,255,0.08)' }}

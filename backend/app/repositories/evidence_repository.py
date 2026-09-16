@@ -20,8 +20,12 @@ def create_evidence(db: Session, alert_id: int, user_id: Optional[int], file_pat
         before_after=before_after,
     )
     db.add(ev)
-    db.commit()
-    db.refresh(ev)
+    try:
+        db.commit()
+        db.refresh(ev)
+    except Exception:
+        db.rollback()
+        raise
     return ev
 
 
@@ -29,6 +33,7 @@ def list_evidence_by_alert(db: Session, alert_id: int, skip: int = 0, limit: int
     try:
         return db.query(Evidence).filter(Evidence.alert_id == alert_id).order_by(Evidence.created_at.desc()).offset(skip).limit(limit).all()
     except Exception:
+        db.rollback()
         return []
 
 
@@ -36,4 +41,5 @@ def get_evidence_by_id(db: Session, evidence_id: int) -> Optional[Evidence]:
     try:
         return db.query(Evidence).filter(Evidence.id == evidence_id).first()
     except Exception:
+        db.rollback()
         return None

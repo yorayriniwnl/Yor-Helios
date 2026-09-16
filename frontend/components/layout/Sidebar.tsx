@@ -3,8 +3,9 @@
 import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { addWebSocketListener } from '../../lib/websocket'
+import { addWebSocketStatusListener, addWebSocketListener } from '../../lib/websocket'
 import { BoltIcon, DASHBOARD_NAV_ITEMS } from '../../lib/navigation'
+import { isDemoModeEnabled } from '../../lib/demo'
 
 type ConnStatus = 'connected' | 'disconnected' | 'demo'
 
@@ -14,26 +15,19 @@ export default function Sidebar() {
   const [lastEventTime, setLastEventTime] = useState<string | null>(null)
 
   useEffect(() => {
-    const isDemoMode =
-      typeof window !== 'undefined' && localStorage.getItem('helios.demo') === '1'
+    const isDemoMode = isDemoModeEnabled()
     if (isDemoMode) {
       setConnStatus('demo')
       return
     }
 
-    let aliveTimer: ReturnType<typeof setTimeout>
-
-    const reset = () => {
-      setConnStatus('connected')
-      setLastEventTime(new Date().toLocaleTimeString())
-      clearTimeout(aliveTimer)
-      aliveTimer = setTimeout(() => setConnStatus('disconnected'), 15_000)
-    }
-
-    const remove = addWebSocketListener(() => reset())
+    const removeStatus = addWebSocketStatusListener((status) => {
+      setConnStatus(status === 'open' ? 'connected' : 'disconnected')
+    })
+    const removeEvent = addWebSocketListener(() => setLastEventTime(new Date().toLocaleTimeString()))
     return () => {
-      remove()
-      clearTimeout(aliveTimer)
+      removeStatus()
+      removeEvent()
     }
   }, [])
 
@@ -53,6 +47,7 @@ export default function Sidebar() {
     <aside className="hidden w-72 shrink-0 border-r border-white/10 bg-[linear-gradient(180deg,rgba(22,3,3,0.82),rgba(0,0,0,0.98))] px-4 py-5 md:flex md:flex-col md:gap-6">
       <Link
         href="/"
+        aria-label="Helios home"
         className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4 shadow-[0_18px_36px_rgba(2,6,23,0.28)] transition-transform hover:-translate-y-0.5"
       >
         <div className="flex items-center gap-3">

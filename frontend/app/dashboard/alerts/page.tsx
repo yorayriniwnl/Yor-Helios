@@ -1,6 +1,8 @@
 "use client"
 
 import React, { useState } from 'react'
+import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { useAlerts } from '../../../hooks'
 import useAlertStore from '../../../store/alertStore'
 import Skeleton from '../../../components/ui/Skeleton'
@@ -22,11 +24,19 @@ const TAB_STATUS: Record<Tab, AlertStatus | ''> = {
 export default function AlertsPage() {
   const [tab, setTab] = useState<Tab>('all')
   const [severityFilter, setSeverityFilter] = useState<AlertSeverity | ''>('')
+  const searchParams = useSearchParams()
+  const querySeverity = searchParams.get('severity')
 
   const clearUnread = useAlertStore((s) => s.clearUnread)
 
   // Clear badge whenever the page mounts
   React.useEffect(() => { clearUnread() }, [clearUnread])
+
+  React.useEffect(() => {
+    if (querySeverity && ['critical', 'high', 'medium', 'low'].includes(querySeverity)) {
+      setSeverityFilter(querySeverity as AlertSeverity)
+    }
+  }, [querySeverity])
 
   const { alerts, loading, error, refetch, assign, resolve } = useAlerts({
     status: TAB_STATUS[tab],
@@ -38,18 +48,23 @@ export default function AlertsPage() {
   const featuredAlert = sorted[0]
 
   const [pending, setPending] = useState<Set<number>>(new Set())
+  const [actionError, setActionError] = useState<string | null>(null)
   const addPending = (id: number) => setPending((s) => new Set(s).add(id))
   const removePending = (id: number) => setPending((s) => { const n = new Set(s); n.delete(id); return n })
 
   const handleResolve = async (id: number) => {
     addPending(id)
+    setActionError(null)
     try { await resolve(id, 'Resolved via dashboard') }
+    catch (err: any) { setActionError(err?.message ?? 'Could not resolve the alert') }
     finally { removePending(id) }
   }
 
   const handleAssign = async (id: number) => {
     addPending(id)
+    setActionError(null)
     try { await assign(id, 1) }   // assign to user 1 (admin) as demo
+    catch (err: any) { setActionError(err?.message ?? 'Could not assign the alert') }
     finally { removePending(id) }
   }
 
@@ -68,6 +83,7 @@ export default function AlertsPage() {
         <div className="flex items-center gap-2 flex-wrap">
           {/* Severity filter */}
           <select
+            aria-label="Filter alerts by severity"
             value={severityFilter}
             onChange={(e) => setSeverityFilter(e.target.value as AlertSeverity | '')}
             className="text-sm rounded-lg px-3 py-1.5"
@@ -97,6 +113,7 @@ export default function AlertsPage() {
         {tabs.map((t) => (
           <button
             key={t}
+            aria-pressed={tab === t}
             onClick={() => setTab(t)}
             className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all capitalize ${
               tab === t
@@ -110,6 +127,7 @@ export default function AlertsPage() {
       </div>
 
       {error && <ErrorMessage message={error} />}
+      {actionError && <ErrorMessage message={actionError} />}
 
       {/* Alert timeline (for visual context) */}
       {!loading && alerts.length > 0 && (
@@ -159,7 +177,13 @@ export default function AlertsPage() {
                       className="border-t border-white/4 hover:bg-white/3 transition-colors animate-fade-in"
                     >
                       <td className="px-4 py-3 font-mono text-xs" style={{ color: 'var(--muted)' }}>
-                        #{a.id}
+                        <Link
+                          href={`/dashboard/alerts/${a.id}`}
+                          className="text-[var(--accent)] hover:underline"
+                          aria-label={`Open investigation for alert ${a.id}`}
+                        >
+                          #{a.id}
+                        </Link>
                       </td>
                       <td className="px-4 py-3 font-medium max-w-[180px] truncate">
                         {formatAlertType(a.type)}

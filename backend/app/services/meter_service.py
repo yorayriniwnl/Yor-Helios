@@ -15,8 +15,24 @@ except Exception:
     )
 
 
-def create_meter(db: Session, meter_number: str, household_name: Optional[str] = None, status: str = "active"):
-    return repo_create_meter(db, meter_number=meter_number, household_name=household_name, status=status)
+def create_meter(
+    db: Session,
+    meter_number: str,
+    household_name: Optional[str] = None,
+    status: str = "active",
+    zone_id: Optional[int] = None,
+    latitude: Optional[float] = None,
+    longitude: Optional[float] = None,
+):
+    return repo_create_meter(
+        db,
+        meter_number=meter_number,
+        household_name=household_name,
+        status=status,
+        zone_id=zone_id,
+        latitude=latitude,
+        longitude=longitude,
+    )
 
 
 def get_meter_by_id(db: Session, meter_id: int):

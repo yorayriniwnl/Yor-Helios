@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState } from 'react'
+import { buildApiUrl, getAuthToken } from '../../lib/api'
 
 type EvidenceItem = {
   id?: number
@@ -20,7 +21,8 @@ type Props = {
   onUploaded?: (item: EvidenceItem) => void
 }
 
-const API_HOST = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+const MAX_FILE_BYTES = 10 * 1024 * 1024
+const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf'])
 
 export default function EvidenceUploader({ alertId, onUploaded }: Props) {
   const [file, setFile] = useState<File | null>(null)
@@ -36,6 +38,10 @@ export default function EvidenceUploader({ alertId, onUploaded }: Props) {
       setError('Choose a file to upload.')
       return
     }
+    if (!ALLOWED_TYPES.has(file.type) || file.size > MAX_FILE_BYTES) {
+      setError('Use a JPEG, PNG, WebP, or PDF file up to 10 MB.')
+      return
+    }
 
     setUploading(true)
     setError(null)
@@ -47,24 +53,21 @@ export default function EvidenceUploader({ alertId, onUploaded }: Props) {
       if (beforeAfter) formData.append('before_after', beforeAfter)
 
       const headers: HeadersInit = {}
-
+      const token = getAuthToken()
+      if (token) headers.Authorization = `Bearer ${token}`
+      const controller = new AbortController()
+      const timeout = window.setTimeout(() => controller.abort(), 30_000)
+      let response: Response
       try {
-        const raw = localStorage.getItem('helios.auth')
-        if (raw) {
-          const parsed = JSON.parse(raw)
-          if (parsed?.token) {
-            headers.Authorization = `Bearer ${parsed.token}`
-          }
-        }
-      } catch {
-        // Ignore auth rehydration failures; backend will reject unauthorized uploads.
+        response = await fetch(buildApiUrl(`/alerts/${alertId}/evidence`), {
+          method: 'POST',
+          body: formData,
+          headers,
+          signal: controller.signal,
+        })
+      } finally {
+        window.clearTimeout(timeout)
       }
-
-      const response = await fetch(`${API_HOST.replace(/\/$/, '')}/api/v1/alerts/${alertId}/evidence`, {
-        method: 'POST',
-        body: formData,
-        headers,
-      })
 
       if (!response.ok) {
         let detail = 'Upload failed.'
@@ -92,9 +95,11 @@ export default function EvidenceUploader({ alertId, onUploaded }: Props) {
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
       <div className="space-y-1">
-        <label className="text-xs font-medium text-[var(--muted)]">Evidence file</label>
+        <label htmlFor={`evidence-file-${alertId}`} className="text-xs font-medium text-[var(--muted)]">Evidence file</label>
         <input
+          id={`evidence-file-${alertId}`}
           type="file"
+          accept="image/jpeg,image/png,image/webp,application/pdf"
           onChange={(event) => setFile(event.target.files?.[0] ?? null)}
           className="block w-full text-xs"
         />
