@@ -7,5 +7,6 @@
   <g transform="translate(40 366)"><rect width="340" height="52" rx="6" fill="#f5eaea" fill-opacity=".045" stroke="#f5eaea" stroke-opacity=".12"/><text x="16" y="23" fill="#c4c4c4" font-family="monospace" font-size="9" letter-spacing="1">LOCATION</text><text x="16" y="40" fill="#f5eaea" font-family="Inter,Arial" font-size="11">GPS captured on device</text></g>
   <g transform="translate(40 434)"><rect width="340" height="80" rx="6" fill="#f5eaea" fill-opacity=".045" stroke="#f5eaea" stroke-opacity=".12"/><text x="16" y="26" fill="#c4c4c4" font-family="monospace" font-size="9" letter-spacing="1">FIELD NOTE</text><text x="16" y="50" fill="#f5eaea" font-family="Inter,Arial" font-size="11">Seal and wiring review pending.</text></g>
   <g transform="translate(40 548)"><rect width="340" height="48" rx="24" fill="url(#signal)"/><text x="210" y="30" fill="#000" font-family="monospace" font-size="11" text-anchor="middle" letter-spacing="1">SAVE TO CASE →</text></g>
-  <text x="40" y="660" fill="#c4c4c4" font-family="monospace" font-size="9" letter-spacing="1">CODE-AUTHORED MOBILE PREVIEW // NO REAL LOCATION OR PHOTO DATA</text>
+  <text x="40" y="646" fill="#c4c4c4" font-family="monospace" font-size="9" letter-spacing="1">CODE-AUTHORED MOBILE PREVIEW</text>
+  <text x="40" y="666" fill="#c4c4c4" font-family="monospace" font-size="9" letter-spacing="1">NO REAL LOCATION OR PHOTO DATA</text>
 </svg>
