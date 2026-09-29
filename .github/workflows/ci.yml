@@ -46,7 +46,7 @@ jobs:
           JWT_SECRET: "ci_test_jwt_secret_1234567890_abcdef"
         run: |
           python -m alembic -c alembic.ini upgrade head
-          python -c "import sqlite3; c=sqlite3.connect('.ci_migration.sqlite'); assert c.execute('select version_num from alembic_version').fetchone()[0] == '002_add_reading_idempotency'; assert {'latitude','longitude'} <= {r[1] for r in c.execute('pragma table_info(meters)')}; assert 'ingest_key' in {r[1] for r in c.execute('pragma table_info(readings)')}; c.close()"
+          python -c "import sqlite3; from alembic.config import Config; from alembic.script import ScriptDirectory; expected=ScriptDirectory.from_config(Config('alembic.ini')).get_current_head(); c=sqlite3.connect('.ci_migration.sqlite'); actual=c.execute('select version_num from alembic_version').fetchone()[0]; assert actual == expected, f'Alembic version mismatch: {actual} != {expected}'; assert {'latitude','longitude'} <= {r[1] for r in c.execute('pragma table_info(meters)')}; assert 'ingest_key' in {r[1] for r in c.execute('pragma table_info(readings)')}; c.close()"
           rm -f .ci_migration.sqlite
 
   frontend-typecheck:
