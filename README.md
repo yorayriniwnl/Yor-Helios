@@ -14,6 +14,23 @@
 
 Helios makes the path from a suspicious meter signal to an actionable response legible: ingest a reading, score an anomaly, persist the case, broadcast the update, and give an operator enough context to investigate. The interface is intentionally built as a command surface rather than a generic analytics dashboard.
 
+<!-- YOR REDLINE / EXPERIENCE V2 -->
+
+<a id="system-map"></a>
+## System map
+
+<div align="center"><picture><source media="(max-width: 600px)" srcset="docs/yor-redline-system-mobile.svg"/><img src="docs/yor-redline-system.svg" width="100%" alt="Energy telemetry and triage: Read telemetry to Detect anomalies to Publish event to Operator investigation"/></picture></div>
+
+| Project signal | Documented scope |
+| :--- | :--- |
+| **Current maturity** | DEMO / EXPERIMENTAL |
+| **Technical focus** | Meter readings, anomaly scoring, realtime event delivery, and operator-facing views. |
+| **Evidence boundary** | A deterministic browser demo exists; hosted production operation is not claimed. |
+
+**Navigate:** [What is implemented](#what-is-implemented) · [Signal path](#signal-path) · [Evidence ledger](#evidence-ledger) · [UI previews](#ui-previews) · [Local verification and release gates](#local-verification-and-release-gates) · [Local frontend check](#local-frontend-check) · [Demo mode](#demo-mode)
+
+<!-- END YOR REDLINE / EXPERIENCE V2 -->
+
 ## What is implemented
 
 - FastAPI REST routes under `/api/v1` for auth, meters, readings, alerts, anomalies, zones, dashboard summaries, recommendations, and sync actions.
